@@ -482,6 +482,7 @@ namespace KinematicCharacterController
 
         private Vector3 _attachedRigidbodyVelocity;
         /// <summary>
+        /// 从其他rigidbody获得的速度
         /// The character's velocity resulting from standing on rigidbodies or PhysicsMover
         /// </summary>
         public Vector3 AttachedRigidbodyVelocity
@@ -1753,6 +1754,7 @@ namespace KinematicCharacterController
         /// </summary>
         private bool IsColliderValidForCollisions(Collider coll)
         {
+            // 如果
             // Ignore dynamic rigidbodies if the movement is made from AttachedRigidbody, or if RigidbodyInteractionType is kinematic
             if ((_isMovingFromAttachedRigidbody || RigidbodyInteractionType == RigidbodyInteractionType.Kinematic) && coll.attachedRigidbody && !coll.attachedRigidbody.isKinematic)
             {
