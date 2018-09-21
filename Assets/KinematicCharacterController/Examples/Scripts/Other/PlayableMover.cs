@@ -3,21 +3,21 @@ using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 using System;
-using UnityEngine.Playables;
+//using UnityEngine.Playables;
 
 namespace KinematicCharacterController.Examples
 {
     public class PlayableMover : BaseMoverController
     {
         public float Speed = 1f;
-        public PlayableDirector Director;
+        //public PlayableDirector Director;
 
         private Transform _transform;
 
         private void Start()
         {
             _transform = this.transform;
-            Director.timeUpdateMode = DirectorUpdateMode.Manual;
+            //Director.timeUpdateMode = DirectorUpdateMode.Manual;
         }
 
         // This is called every FixedUpdate by our PhysicsMover in order to tell it what pose it should go to
@@ -42,8 +42,8 @@ namespace KinematicCharacterController.Examples
 
         public void EvaluateAtTime(double time)
         {
-            Director.time = time % Director.duration;
-            Director.Evaluate();
+            //Director.time = time % Director.duration;
+            //Director.Evaluate();
         }
     }
 }
