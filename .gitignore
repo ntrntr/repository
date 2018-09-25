@@ -2,3 +2,8 @@ Library
 Temp
 .vs
 obj
+/repository.Editor.csproj
+/repository.sln
+/Assembly-CSharp.csproj
+/Assembly-CSharp-Editor.csproj
+/repository.csproj
