@@ -18,6 +18,8 @@ namespace KinematicCharacterController
     }
 
     /// <summary>
+    /// 移动物件
+    /// This script moves kinematic physics objects (moving platforms) so that characters can properly stand on the and be pushed by them.
     /// Component that manages the movement of moving kinematic rigidbodies for
     /// proper interaction with characters
     /// </summary>

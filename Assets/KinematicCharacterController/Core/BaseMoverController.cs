@@ -4,6 +4,9 @@ using UnityEngine;
 
 namespace KinematicCharacterController
 {
+    /// <summary>
+    /// BaseMoverController is the class you inherit from in order to create custom physics mover controllers (moving platforms). It’s a component that receives callbacks from PhysicsMover, and tells it how to behave through these callbacks.
+    /// </summary>
     public abstract class BaseMoverController : MonoBehaviour
     {
         /// <summary>
