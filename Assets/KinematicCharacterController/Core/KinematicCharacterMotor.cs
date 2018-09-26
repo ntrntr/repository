@@ -1800,6 +1800,7 @@ namespace KinematicCharacterController
             {
                 // Stepping not supported on dynamic rigidbodies
                 Rigidbody hitRigidbody = hitCollider.attachedRigidbody;
+                // 走楼梯
                 if (!(hitRigidbody && !hitRigidbody.isKinematic))
                 {
                     DetectSteps(atCharacterPosition, atCharacterRotation, hitPoint, innerHitDirection, ref stabilityReport);

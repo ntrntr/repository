@@ -42,9 +42,11 @@ namespace KinematicCharacterController
         [SerializeField]
         private static CharacterSystemInterpolationMethod _internalInterpolationMethod = CharacterSystemInterpolationMethod.Custom;
         /// <summary>
+        /// 用于更新期间的物理插值。
+        /// 插值用来估算在物理更新期间刚体的位置。这用来改变当图形显示更新比物理更新更频繁时，因为对象会出现急剧抖动而不是平滑运动。在内插值模式，在上一帧基于对象的位置运动被平滑。外插值模式平滑运动是在下一帧基于它估计的位置。模式的选择取决于在游戏中对象的动态。
         /// Sets the interpolation method of the system:
         /// - None: no interpolation
-        /// - Unity: uses Unity's built-in rigidbody interpolation
+        /// - Unity: uses Unity's built-in rigidbody interpolation, unity的内插值
         /// - Custom: uses a custom interpolation
         /// </summary>
         public static CharacterSystemInterpolationMethod InterpolationMethod
