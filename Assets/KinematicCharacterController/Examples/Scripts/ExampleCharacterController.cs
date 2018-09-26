@@ -264,11 +264,16 @@ namespace KinematicCharacterController.Examples
                             currentVelocity = Motor.GetDirectionTangentToSurface(currentVelocity, effectiveGroundNormal) * currentVelocity.magnitude;
 
                             // Calculate target velocity
-                            Vector3 inputRight = Vector3.Cross(_moveInputVector, Motor.CharacterUp);
-                            Vector3 reorientedInput = Vector3.Cross(effectiveGroundNormal, inputRight).normalized * _moveInputVector.magnitude;
+                            // 左手系的话，应该是左, 前×上，逆时针，左
+                            Vector3 inputLeft = Vector3.Cross(_moveInputVector, Motor.CharacterUp);
+                            // 上×左，顺时针，前
+                            Vector3 reorientedInput = Vector3.Cross(effectiveGroundNormal, inputLeft).normalized * _moveInputVector.magnitude;
                             targetMovementVelocity = reorientedInput * MaxStableMoveSpeed;
                             
                             // Smooth movement Velocity
+                            // 函数图像查看
+                            // http://www.fooplot.com/#W3sidHlwZSI6MCwiZXEiOiIxLWVeKC14KSIsImNvbG9yIjoiIzAwMDAwMCJ9LHsidHlwZSI6MTAwMH1d
+                            // 大致是一个前面快增长，后面慢增长
                             currentVelocity = Vector3.Lerp(currentVelocity, targetMovementVelocity, 1 - Mathf.Exp(-StableMovementSharpness * deltaTime));
                         }
                         // Air movement
@@ -294,6 +299,7 @@ namespace KinematicCharacterController.Examples
                             currentVelocity += Gravity * deltaTime;
 
                             // Drag
+                            //http://www.fooplot.com/#W3sidHlwZSI6MCwiZXEiOiIxLygxKygwLjEqeCkpIiwiY29sb3IiOiIjMDAwMDAwIn0seyJ0eXBlIjoxMDAwfV0-
                             currentVelocity *= (1f / (1f + (Drag * deltaTime)));
                         }
 

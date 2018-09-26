@@ -1120,6 +1120,9 @@ namespace KinematicCharacterController
                             {
                                 // Process overlap
                                 Transform overlappedTransform = _internalProbedColliders[i].GetComponent<Transform>();
+                                //One of the colliders has to be BoxCollider, SphereCollider CapsuleCollider or a convex MeshCollider. The other one can be any type
+                                // 这个函数很实用，不是轴对齐的包围盒，去除了二个collider的closetPoint计算
+                                // Super Character Controller实用了自己的公式计算二个Collider之间ClosetPoint,相比之下，KCC简洁多
                                 if (Physics.ComputePenetration(
                                         Capsule,
                                         TransientPosition,
@@ -1250,6 +1253,7 @@ namespace KinematicCharacterController
         }
 
         /// <summary>
+        /// 是否在斜坡上
         /// Determines if motor can be considered stable on given slope normal
         /// </summary>
         private bool IsStableOnNormal(Vector3 normal)
@@ -1370,6 +1374,7 @@ namespace KinematicCharacterController
         }
 
         /// <summary>
+        /// <p>跳跃情况下实用，取消ground prebe和snapping</p>
         /// Forces the character to unground itself on its next grounding update
         /// </summary>
         public void ForceUnground()
@@ -1378,13 +1383,14 @@ namespace KinematicCharacterController
         }
 
         /// <summary>
+        /// <p>沿着斜面方向,CharacterUp</p>
         /// Returns the direction adjusted to be tangent to a specified surface normal relatively to the character's up direction.
         /// Useful for reorienting a direction on a slope without any lateral deviation in trajectory
         /// </summary>
         public Vector3 GetDirectionTangentToSurface(Vector3 direction, Vector3 surfaceNormal)
         {
-            Vector3 directionRight = Vector3.Cross(direction, CharacterUp);
-            return Vector3.Cross(surfaceNormal, directionRight).normalized;
+            Vector3 directionLeft = Vector3.Cross(direction, CharacterUp);
+            return Vector3.Cross(surfaceNormal, directionLeft).normalized;
         }
 
         /// <summary>
@@ -2113,6 +2119,7 @@ namespace KinematicCharacterController
         }
 
         /// <summary>
+        /// 查找与胶囊体相交的物体
         /// Detect if the character capsule is overlapping with anything collidable
         /// </summary>
         /// <returns> Returns number of overlaps </returns>

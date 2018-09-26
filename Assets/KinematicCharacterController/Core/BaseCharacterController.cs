@@ -86,6 +86,7 @@ namespace KinematicCharacterController
                 // On blocking hits, project the movement on the obstruction while following the grounding plane
                 else
                 {
+                    //这几个名字有迷惑性，其实是沿着障碍物走,并且能量不丢失
                     Vector3 obstructionRightAlongGround = Vector3.Cross(obstructionNormal, Motor.GroundingStatus.GroundNormal).normalized;
                     Vector3 obstructionUpAlongGround = Vector3.Cross(obstructionRightAlongGround, obstructionNormal).normalized;
                     movement = Motor.GetDirectionTangentToSurface(movement, obstructionUpAlongGround) * movement.magnitude;
