@@ -190,6 +190,9 @@ namespace KinematicCharacterController.Examples
         {
             _moveInputVector = inputs.MoveVector;
             _lookInputVector = inputs.LookVector;
+            
+            
+            
         }
 
         /// <summary>
@@ -341,12 +344,27 @@ namespace KinematicCharacterController.Examples
             }
         }
 
+        private static readonly float MarkerSize = 1.0f;
+        private static readonly float RaySize = 2.0f;
+        
+        private void DebugDrawTest()
+        {
+            //HitDraw(Motor.GroundingStatus.GroundPoint, Motor.GroundingStatus.GroundNormal * 2.0f, Color.red);
+            HitDraw(gameObject.transform.position, Motor.CharacterUp, Color.blue);
+        }
+        
+        private void HitDraw(Vector3 hitPoint, Vector3 hitNormal, Color color)
+        {
+            DebugDraw.DrawVector(hitPoint, hitNormal, RaySize, MarkerSize, color, 0.0f);
+        }
+
         /// <summary>
         /// (Called by KinematicCharacterMotor during its update cycle)
         /// This is called after the character has finished its movement update
         /// </summary>
         public override void AfterCharacterUpdate(float deltaTime)
         {
+            DebugDrawTest();
             switch (CurrentCharacterState)
             {
                 case CharacterState.Default:
@@ -431,10 +449,12 @@ namespace KinematicCharacterController.Examples
 
         public override void OnGroundHit(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, ref HitStabilityReport hitStabilityReport)
         {
+            HitDraw(hitPoint, hitNormal * 2.0f, Color.red);
         }
 
         public override void OnMovementHit(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, ref HitStabilityReport hitStabilityReport)
         {
+            HitDraw(hitPoint, hitNormal * 2.0f, Color.green);
         }
 
         public void AddVelocity(Vector3 velocity)
