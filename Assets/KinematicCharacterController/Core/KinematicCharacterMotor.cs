@@ -899,10 +899,10 @@ namespace KinematicCharacterController
                                     // Resolve along obstruction direction
                                     Vector3 originalResolutionDirection = resolutionDirection;
                                     HitStabilityReport mockReport = new HitStabilityReport();
-                                    DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized, Color.red);
+                                    DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2, Color.red, 3.0f);
                                     mockReport.IsStable = IsStableOnNormal(resolutionDirection);
                                     resolutionDirection = GetObstructionNormal(resolutionDirection.normalized, mockReport);
-                                    DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized,Color.cyan);
+                                    DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2.2f,Color.cyan, 3.0f);
 
                                     float tiltAngle = 90f - Vector3.Angle(originalResolutionDirection, resolutionDirection);
                                     resolutionDistance = resolutionDistance / Mathf.Sin(tiltAngle * Mathf.Deg2Rad);

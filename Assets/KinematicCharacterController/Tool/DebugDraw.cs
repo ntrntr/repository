@@ -1065,7 +1065,7 @@ public static class DebugDraw
 	/// <param name='radius'>
 	/// 	- The radius of the circle.
 	/// </param>
-	public static void DrawCircle(Vector3 position, Vector3 up, Color color, float radius = 1.0f)
+	public static void DrawCircle(Vector3 position, Vector3 up, Color color, float radius = 1.0f, float duration = 0.0f)
 	{
 		up = ((up == Vector3.zero) ? Vector3.up : up).normalized * radius;
 		Vector3 _forward = Vector3.Slerp(up, -up, 0.5f);
@@ -1097,7 +1097,7 @@ public static class DebugDraw
 			
 			_nextPoint = position + matrix.MultiplyPoint3x4(_nextPoint);
 			
-			Debug.DrawLine(_lastPoint, _nextPoint, tmpColor);
+			Debug.DrawLine(_lastPoint, _nextPoint, tmpColor, duration);
 			_lastPoint = _nextPoint;
 		}
 	}
@@ -1230,7 +1230,7 @@ public static class DebugDraw
 	/// <param name='angle'>
 	/// 	- The angle of the cone.
 	/// </param>
-	public static void DrawCone(Vector3 position, Vector3 direction, Color color, float angle = 45)
+	public static void DrawCone(Vector3 position, Vector3 direction, Color color, float angle = 45, float duration = 0.0f)
 	{
 		float length = direction.magnitude;
 		
@@ -1250,12 +1250,12 @@ public static class DebugDraw
 		
 		
 		Debug.DrawRay(position, slerpedVector.normalized*dist, color);
-	    Debug.DrawRay(position, Vector3.Slerp(_forward, -_up, angle/90.0f).normalized*dist, color);
-	    Debug.DrawRay(position, Vector3.Slerp(_forward, _right, angle/90.0f).normalized*dist, color);
-	    Debug.DrawRay(position, Vector3.Slerp(_forward, -_right, angle/90.0f).normalized*dist, color);
+	    Debug.DrawRay(position, Vector3.Slerp(_forward, -_up, angle/90.0f).normalized*dist, color, duration);
+	    Debug.DrawRay(position, Vector3.Slerp(_forward, _right, angle/90.0f).normalized*dist, color, duration);
+	    Debug.DrawRay(position, Vector3.Slerp(_forward, -_right, angle/90.0f).normalized*dist, color, duration);
 		
-		DebugDraw.DrawCircle(position+_forward, direction, color, (_forward-(slerpedVector.normalized*dist)).magnitude);
-		DebugDraw.DrawCircle(position+(_forward*0.5f), direction, color, ((_forward*0.5f)-(slerpedVector.normalized*(dist*0.5f))).magnitude);
+		DebugDraw.DrawCircle(position+_forward, direction, color, (_forward-(slerpedVector.normalized*dist)).magnitude, duration);
+		DebugDraw.DrawCircle(position+(_forward*0.5f), direction, color, ((_forward*0.5f)-(slerpedVector.normalized*(dist*0.5f))).magnitude, duration);
 	}
 	
 	/// <summary>
@@ -1318,10 +1318,10 @@ public static class DebugDraw
 	/// <param name='color'>
 	/// 	- The color of the arrow.
 	/// </param>
-	public static void DrawArrow(Vector3 position, Vector3 direction, Color color)
+	public static void DrawArrow(Vector3 position, Vector3 direction, Color color, float duration = 0.0f)
 	{	
-	    Debug.DrawRay(position, direction, color);
-		DebugDraw.DrawCone(position+direction, -direction*0.333f, color, 15);
+	    Debug.DrawRay(position, direction, color, duration);
+		DebugDraw.DrawCone(position+direction, -direction*0.333f, color, 15, duration);
 	}
 	
 	/// <summary>
