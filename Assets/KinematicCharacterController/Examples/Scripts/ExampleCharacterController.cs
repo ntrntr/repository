@@ -126,6 +126,11 @@ namespace KinematicCharacterController.Examples
         /// </summary>
         public void SetInputs(ref PlayerCharacterInputs inputs)
         {
+            if (inputs.MoveAxisForward > 0.5f)
+            {
+                int c = 1;
+            }
+            
             // Clamp input
             Vector3 moveInputVector = Vector3.ClampMagnitude(new Vector3(inputs.MoveAxisRight, 0f, inputs.MoveAxisForward), 1f);
 
@@ -350,7 +355,7 @@ namespace KinematicCharacterController.Examples
         private void DebugDrawTest()
         {
             //HitDraw(Motor.GroundingStatus.GroundPoint, Motor.GroundingStatus.GroundNormal * 2.0f, Color.red);
-            HitDraw(gameObject.transform.position, Motor.CharacterUp, Color.blue);
+            //HitDraw(gameObject.transform.position, Motor.CharacterUp, Color.blue);
         }
         
         private void HitDraw(Vector3 hitPoint, Vector3 hitNormal, Color color)
@@ -449,7 +454,7 @@ namespace KinematicCharacterController.Examples
 
         public override void OnGroundHit(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, ref HitStabilityReport hitStabilityReport)
         {
-            HitDraw(hitPoint, hitNormal * 2.0f, Color.red);
+            HitDraw(hitPoint, hitNormal * 100.0f, Color.black);
         }
 
         public override void OnMovementHit(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, ref HitStabilityReport hitStabilityReport)
@@ -471,6 +476,14 @@ namespace KinematicCharacterController.Examples
 
         public override void ProcessHitStabilityReport(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, Vector3 atCharacterPosition, Quaternion atCharacterRotation, ref HitStabilityReport hitStabilityReport)
         {
+            DebugDraw.DrawArrow(hitPoint, hitNormal, Color.yellow);
+            if (hitStabilityReport.LedgeDetected)
+            {
+                DebugDraw.DrawArrow(hitPoint, hitStabilityReport.LedgeGroundNormal, Color.green);
+                DebugDraw.DrawArrow(hitPoint, hitStabilityReport.LedgeRightDirection, Color.red);
+                DebugDraw.DrawArrow(hitPoint, hitStabilityReport.LedgeFacingDirection, Color.blue);
+            }
+           
         }
 
         protected void OnLanded()

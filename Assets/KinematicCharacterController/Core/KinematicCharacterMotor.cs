@@ -216,6 +216,7 @@ namespace KinematicCharacterController
         [Tooltip("Maximum slope angle on which the character can be stable")]
         public float MaxStableSlopeAngle = 60f;
         /// <summary>
+        /// 在边缘多远处，当做稳定地面
         /// The distance from the capsule central axis at which the character can stand on a ledge and still be stable
         /// </summary>    
         [Tooltip("The distance from the capsule central axis at which the character can stand on a ledge and still be stable")]
@@ -526,6 +527,7 @@ namespace KinematicCharacterController
         private const float MinimumGroundProbingDistance = 0.005f;
         private const float GroundProbingBackstepDistance = 0.1f;
         private const float SweepProbingBackstepDistance = 0.002f;
+        // 探测内外角度 Mathf.Atan2(0.02f,0.01) * 180 / Pi = 87.0度，如果大于87度，在外角度，会在斜坡下面
         private const float SecondaryProbesVertical = 0.02f;
         private const float SecondaryProbesHorizontal = 0.001f;
         private const float MinVelocityMagnitude = 0.01f;
@@ -897,8 +899,11 @@ namespace KinematicCharacterController
                                     // Resolve along obstruction direction
                                     Vector3 originalResolutionDirection = resolutionDirection;
                                     HitStabilityReport mockReport = new HitStabilityReport();
+                                    DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized, Color.red);
                                     mockReport.IsStable = IsStableOnNormal(resolutionDirection);
-                                    resolutionDirection = GetObstructionNormal(resolutionDirection, mockReport);
+                                    resolutionDirection = GetObstructionNormal(resolutionDirection.normalized, mockReport);
+                                    DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized,Color.cyan);
+
                                     float tiltAngle = 90f - Vector3.Angle(originalResolutionDirection, resolutionDirection);
                                     resolutionDistance = resolutionDistance / Mathf.Sin(tiltAngle * Mathf.Deg2Rad);
 
@@ -1134,6 +1139,7 @@ namespace KinematicCharacterController
                                         out resolutionDistance))
                                 {
                                     // Resolve along obstruction direction
+                                    // ??????????
                                     Vector3 originalResolutionDirection = resolutionDirection;
                                     HitStabilityReport mockReport = new HitStabilityReport();
                                     mockReport.IsStable = IsStableOnNormal(resolutionDirection);
@@ -1495,6 +1501,7 @@ namespace KinematicCharacterController
                         }
                     }
 
+                    // 有这个if与上面的if是互斥的
                     // Handle movement solving
                     if (!foundValidStepHit)
                     {
@@ -1595,6 +1602,7 @@ namespace KinematicCharacterController
         }
 
         /// <summary>
+        /// 每次沿着障碍物的斜面走 
         /// Processes movement projection upon detecting a hit
         /// </summary>
         private void InternalHandleMovementProjection(bool stableOnHit, Vector3 hitNormal, Vector3 obstructionNormal, Vector3 originalMoveDirection, ref MovementSweepState sweepState, 
@@ -1623,6 +1631,7 @@ namespace KinematicCharacterController
             // Handle projection
             else
             {
+                // 默认的移动策略
                 CharacterController.HandleMovementProjection(ref remainingMovement, obstructionNormal, stableOnHit);
 
                 remainingMovementDirection = remainingMovement.normalized;
@@ -1869,6 +1878,14 @@ namespace KinematicCharacterController
             CharacterController.ProcessHitStabilityReport(hitCollider, hitNormal, hitPoint, atCharacterPosition, atCharacterRotation, ref stabilityReport);
         }
 
+        /// <summary>
+        /// 检查楼梯
+        /// </summary>
+        /// <param name="characterPosition"></param>
+        /// <param name="characterRotation"></param>
+        /// <param name="hitPoint"></param>
+        /// <param name="innerHitDirection">沿着法线方向</param>
+        /// <param name="stabilityReport"></param>
         private void DetectSteps(Vector3 characterPosition, Quaternion characterRotation, Vector3 hitPoint, Vector3 innerHitDirection, ref HitStabilityReport stabilityReport)
         {
             int nbStepHits = 0;
@@ -1915,6 +1932,16 @@ namespace KinematicCharacterController
             }
         }
 
+        /// <summary>
+        /// 验证是否有效
+        /// </summary>
+        /// <param name="nbStepHits"></param>
+        /// <param name="characterPosition"></param>
+        /// <param name="characterRotation"></param>
+        /// <param name="innerHitDirection"></param>
+        /// <param name="stepCheckStartPos"></param>
+        /// <param name="hitCollider"></param>
+        /// <returns></returns>
         private bool CheckStepValidity(int nbStepHits, Vector3 characterPosition, Quaternion characterRotation, Vector3 innerHitDirection, Vector3 stepCheckStartPos, out Collider hitCollider)
         {
             hitCollider = null;

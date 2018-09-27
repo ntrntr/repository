@@ -72,6 +72,11 @@ namespace KinematicCharacterController
         public abstract void ProcessHitStabilityReport(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, Vector3 atCharacterPosition, Quaternion atCharacterRotation, ref HitStabilityReport hitStabilityReport);
         
         /// <summary>
+        /// <p>默认的移动策略</p>
+        /// <p>1. 如果稳定地面和稳定移动(角度大于AngleLimit)，比如在斜坡上移动, result:速度会根据CharacterUp，重新改变方向，没有能量丢失</p>
+        /// <p>2. 如果稳定地面和不稳定移动，比如撞到了一堵微微倾斜的墙, result:速度会保护，根据投影，重新改变方向，能量丢失</p>
+        /// <p>3. 如果不稳定地面(在空中)和稳定移动(撞到稳定平面), result:速度先投影到CharacterUp平面，然后沿着切坡的方向</p>
+        /// <p>4. 如果不稳定地面(在空中)和不稳定移动(撞到稳定平面), result:后沿着不稳定平面的方向</p>
         /// Allows you to override the way velocity is projected on an obstruction
         /// </summary>
         public virtual void HandleMovementProjection(ref Vector3 movement, Vector3 obstructionNormal, bool stableOnHit)
@@ -86,10 +91,11 @@ namespace KinematicCharacterController
                 // On blocking hits, project the movement on the obstruction while following the grounding plane
                 else
                 {
-                    //这几个名字有迷惑性，其实是沿着障碍物走,并且能量不丢失
+                    //这几个名字有迷惑性，其实是沿着障碍物走
                     Vector3 obstructionRightAlongGround = Vector3.Cross(obstructionNormal, Motor.GroundingStatus.GroundNormal).normalized;
                     Vector3 obstructionUpAlongGround = Vector3.Cross(obstructionRightAlongGround, obstructionNormal).normalized;
                     movement = Motor.GetDirectionTangentToSurface(movement, obstructionUpAlongGround) * movement.magnitude;
+                    //丢失能量
                     movement = Vector3.ProjectOnPlane(movement, obstructionNormal);
                 }
             }
