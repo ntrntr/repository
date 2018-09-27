@@ -1088,8 +1088,7 @@ public static class DebugDraw
 		Vector3 _lastPoint = position + matrix.MultiplyPoint3x4(new Vector3(Mathf.Cos(0), 0, Mathf.Sin(0)));
 		Vector3 _nextPoint = Vector3.zero;
 		
-		Color oldColor = Gizmos.color;
-		Gizmos.color = (color == default(Color)) ? Color.white : color;
+		Color tmpColor = (color == default(Color)) ? Color.white : color;
 		
 		for(var i = 0; i < 91; i++){
 			_nextPoint.x = Mathf.Cos((i*4)*Mathf.Deg2Rad);
@@ -1098,11 +1097,9 @@ public static class DebugDraw
 			
 			_nextPoint = position + matrix.MultiplyPoint3x4(_nextPoint);
 			
-			Gizmos.DrawLine(_lastPoint, _nextPoint);
+			Debug.DrawLine(_lastPoint, _nextPoint, tmpColor);
 			_lastPoint = _nextPoint;
 		}
-		
-		Gizmos.color = oldColor;
 	}
 	
 	/// <summary>
@@ -1251,18 +1248,14 @@ public static class DebugDraw
 	
 		farPlane.Raycast(distRay, out dist); 
 		
-		Color oldColor = Gizmos.color;
-		Gizmos.color = color;
 		
-		Gizmos.DrawRay(position, slerpedVector.normalized*dist);
-		Gizmos.DrawRay(position, Vector3.Slerp(_forward, -_up, angle/90.0f).normalized*dist);
-		Gizmos.DrawRay(position, Vector3.Slerp(_forward, _right, angle/90.0f).normalized*dist);
-		Gizmos.DrawRay(position, Vector3.Slerp(_forward, -_right, angle/90.0f).normalized*dist);
+		Debug.DrawRay(position, slerpedVector.normalized*dist, color);
+	    Debug.DrawRay(position, Vector3.Slerp(_forward, -_up, angle/90.0f).normalized*dist, color);
+	    Debug.DrawRay(position, Vector3.Slerp(_forward, _right, angle/90.0f).normalized*dist, color);
+	    Debug.DrawRay(position, Vector3.Slerp(_forward, -_right, angle/90.0f).normalized*dist, color);
 		
 		DebugDraw.DrawCircle(position+_forward, direction, color, (_forward-(slerpedVector.normalized*dist)).magnitude);
 		DebugDraw.DrawCircle(position+(_forward*0.5f), direction, color, ((_forward*0.5f)-(slerpedVector.normalized*(dist*0.5f))).magnitude);
-		
-		Gizmos.color = oldColor;
 	}
 	
 	/// <summary>
@@ -1327,13 +1320,8 @@ public static class DebugDraw
 	/// </param>
 	public static void DrawArrow(Vector3 position, Vector3 direction, Color color)
 	{	
-		Color oldColor = Gizmos.color;
-		Gizmos.color = color;
-		
-		Gizmos.DrawRay(position, direction);
+	    Debug.DrawRay(position, direction, color);
 		DebugDraw.DrawCone(position+direction, -direction*0.333f, color, 15);
-		
-		Gizmos.color = oldColor;
 	}
 	
 	/// <summary>
