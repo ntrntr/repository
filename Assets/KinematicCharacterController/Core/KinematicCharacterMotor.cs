@@ -798,6 +798,36 @@ namespace KinematicCharacterController
             SetCapsuleDimensions(CapsuleRadius, CapsuleHeight, CapsuleYOffset);
         }
 
+
+        /// <summary>
+        /// 根据渗透的距离，进行反渗透
+        /// </summary>
+        /// <param name="resolutionDirection"></param>
+        /// <param name="resolutionDistance"></param>
+        private void SolvePenetration(Vector3 resolutionDirection, float resolutionDistance, Collider probedCollider)
+        {
+            // Resolve along obstruction direction
+            Vector3 originalResolutionDirection = resolutionDirection;
+            HitStabilityReport mockReport = new HitStabilityReport();
+            DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2, Color.red, 3.0f);
+            mockReport.IsStable = IsStableOnNormal(resolutionDirection);
+            resolutionDirection = GetObstructionNormal(resolutionDirection, mockReport);
+            float tiltAngle = 90f - Vector3.Angle(originalResolutionDirection, resolutionDirection);
+            resolutionDistance = resolutionDistance / Mathf.Sin(tiltAngle * Mathf.Deg2Rad);
+            DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2.2f,Color.cyan, 3.0f);
+
+            // Solve overlap
+            Vector3 resolutionMovement = resolutionDirection * (resolutionDistance + CollisionOffset);
+            TransientPosition += resolutionMovement;
+            
+            // Remember overlaps
+            if (OverlapsCount < _overlaps.Length)
+            {
+                _overlaps[OverlapsCount] = new OverlapResult(resolutionDirection, probedCollider);
+                OverlapsCount++;
+            }
+        }
+
         /// <summary>
         /// Update phase 1 is meant to be called after physics movers have calculated their velocities, but
         /// before they have simulated their goal positions/rotations. It is responsible for:
@@ -896,28 +926,7 @@ namespace KinematicCharacterController
                                         out resolutionDirection,
                                         out resolutionDistance))
                                 {
-                                    // Resolve along obstruction direction
-                                    Vector3 originalResolutionDirection = resolutionDirection;
-                                    HitStabilityReport mockReport = new HitStabilityReport();
-                                    DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2, Color.red, 3.0f);
-                                    mockReport.IsStable = IsStableOnNormal(resolutionDirection);
-                                    resolutionDirection = GetObstructionNormal(resolutionDirection.normalized, mockReport);
-                                    DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2.2f,Color.cyan, 3.0f);
-
-                                    float tiltAngle = 90f - Vector3.Angle(originalResolutionDirection, resolutionDirection);
-                                    resolutionDistance = resolutionDistance / Mathf.Sin(tiltAngle * Mathf.Deg2Rad);
-
-                                    // Solve overlap
-                                    Vector3 resolutionMovement = resolutionDirection * (resolutionDistance + CollisionOffset);
-                                    TransientPosition += resolutionMovement;
-
-                                    // Remember overlaps
-                                    if (OverlapsCount < _overlaps.Length)
-                                    {
-                                        _overlaps[OverlapsCount] = new OverlapResult(resolutionDirection, _internalProbedColliders[i]);
-                                        OverlapsCount++;
-                                    }
-
+                                    SolvePenetration(resolutionDirection, resolutionDistance, _internalProbedColliders[i]);
                                     break;
                                 }
                             }
@@ -1138,18 +1147,7 @@ namespace KinematicCharacterController
                                         out resolutionDirection,
                                         out resolutionDistance))
                                 {
-                                    // Resolve along obstruction direction
-                                    // ??????????
-                                    Vector3 originalResolutionDirection = resolutionDirection;
-                                    HitStabilityReport mockReport = new HitStabilityReport();
-                                    mockReport.IsStable = IsStableOnNormal(resolutionDirection);
-                                    resolutionDirection = GetObstructionNormal(resolutionDirection, mockReport);
-                                    float tiltAngle = 90f - Vector3.Angle(originalResolutionDirection, resolutionDirection);
-                                    resolutionDistance = resolutionDistance / Mathf.Sin(tiltAngle * Mathf.Deg2Rad);
-
-                                    // Solve overlap
-                                    Vector3 resolutionMovement = resolutionDirection * (resolutionDistance + CollisionOffset);
-                                    TransientPosition += resolutionMovement;
+                                    SolvePenetration(resolutionDirection, resolutionDistance, _internalProbedColliders[i]);
 
                                     // If physicsMover, register as rigidbody hit for velocity
                                     if (InteractiveRigidbodyHandling)
@@ -1190,13 +1188,6 @@ namespace KinematicCharacterController
                                                 }
                                             }
                                         }
-                                    }
-
-                                    // Remember overlaps
-                                    if (OverlapsCount < _overlaps.Length)
-                                    {
-                                        _overlaps[OverlapsCount] = new OverlapResult(resolutionDirection, _internalProbedColliders[i]);
-                                        OverlapsCount++;
                                     }
 
                                     break;
