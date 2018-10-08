@@ -186,6 +186,14 @@ namespace KinematicCharacterController
         [SerializeField]
         [Tooltip("Height of the Character Capsule")]
         private float CapsuleYOffset = 1f;
+        
+        /// <summary>
+        /// The direction of the capsule.The value can be 0, 1 or 2 corresponding to the X, Y and Z axes, respectively.
+        /// </summary>
+        [SerializeField]
+        [Tooltip("The direction of the capsule.The value can be 0, 1 or 2 corresponding to the X, Y and Z axes, respectively.")]
+        private int CapsuleDirection = 1;
+        
         /// <summary>
         /// Physics material of the character's capsule
         /// </summary>
@@ -589,9 +597,9 @@ namespace KinematicCharacterController
             Capsule = GetComponent<CapsuleCollider>();
             CapsuleRadius = Mathf.Clamp(CapsuleRadius, 0f, CapsuleHeight * 0.5f);
             Capsule.isTrigger = false;
-            Capsule.direction = 1;
+            Capsule.direction = CapsuleDirection;
             Capsule.sharedMaterial = CapsulePhysicsMaterial;
-            SetCapsuleDimensions(CapsuleRadius, CapsuleHeight, CapsuleYOffset);
+            SetCapsuleDimensions(CapsuleRadius, CapsuleHeight, CapsuleYOffset, CapsuleDirection);
 
             MaxStepHeight = Mathf.Clamp(MaxStepHeight, 0f, Mathf.Infinity);
             MinRequiredStepDepth = Mathf.Clamp(MinRequiredStepDepth, 0f, CapsuleRadius);
@@ -753,9 +761,9 @@ namespace KinematicCharacterController
         }
 
         /// <summary>
-        /// Resizes capsule. ALso caches importand capsule size data
+        /// Resizes capsule. ALso caches important capsule size data
         /// </summary>
-        public void SetCapsuleDimensions(float radius, float height, float yOffset)
+        public void SetCapsuleDimensions(float radius, float height, float yOffset, int direction)
         {
             CapsuleRadius = radius;
             CapsuleHeight = height;
@@ -766,10 +774,35 @@ namespace KinematicCharacterController
             Capsule.center = new Vector3(0f, CapsuleYOffset, 0f);
 
             CharacterTransformToCapsuleCenter = Capsule.center;
-            CharacterTransformToCapsuleBottom = Capsule.center + (-_cachedWorldUp * (Capsule.height * 0.5f));
-            CharacterTransformToCapsuleTop = Capsule.center + (_cachedWorldUp * (Capsule.height * 0.5f));
-            CharacterTransformToCapsuleBottomHemi = Capsule.center + (-_cachedWorldUp * (Capsule.height * 0.5f)) + (_cachedWorldUp * Capsule.radius);
-            CharacterTransformToCapsuleTopHemi = Capsule.center + (_cachedWorldUp * (Capsule.height * 0.5f)) + (-_cachedWorldUp * Capsule.radius);
+
+            var localFoward = GetForwardDirection(direction);
+            
+            CharacterTransformToCapsuleBottom = Capsule.center + (-localFoward * (Capsule.height * 0.5f));
+            CharacterTransformToCapsuleTop = Capsule.center + (localFoward * (Capsule.height * 0.5f));
+            CharacterTransformToCapsuleBottomHemi = Capsule.center + (-localFoward * (Capsule.height * 0.5f)) + (localFoward * Capsule.radius);
+            CharacterTransformToCapsuleTopHemi = Capsule.center + (localFoward * (Capsule.height * 0.5f)) + (-localFoward * Capsule.radius);
+        }
+
+        private Vector3 GetForwardDirection(int direction)
+        {
+            var ret = Vector3.zero;
+            switch (direction)
+            {
+                case 0:
+                    ret = _cachedWorldRight;
+                    break;
+                case 1:
+                    ret = _cachedWorldUp;
+                    break;
+                case 2:
+                    ret = _cachedWorldForward;
+                    break;
+                default:
+                    ret = _cachedWorldUp;
+                    break;
+            }
+
+            return ret;
         }
 
         private void Awake()
@@ -795,7 +828,7 @@ namespace KinematicCharacterController
                 CharacterController.SetupCharacterMotor(this);
             }
 
-            SetCapsuleDimensions(CapsuleRadius, CapsuleHeight, CapsuleYOffset);
+            SetCapsuleDimensions(CapsuleRadius, CapsuleHeight, CapsuleYOffset, CapsuleDirection);
         }
 
 
