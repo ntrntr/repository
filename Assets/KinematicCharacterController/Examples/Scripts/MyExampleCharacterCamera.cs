@@ -80,11 +80,20 @@ namespace KinematicCharacterController.Examples
             _internalIgnoredColliders.Clear();
             _internalIgnoredColliders.AddRange(FollowCharacter.GetComponentsInChildren<Collider>());
         }
+
+        private void UpdatePlanar()
+        {
+            //PlanarDirection =  Vector3.ProjectOnPlane(FollowCharacter.transform.forward, FollowCharacter.WorldUp);
+            //this.transform.rotation = Quaternion.LookRotation(Vector3.ProjectOnPlane(FollowCharacter.transform.forward, this.transform.up), this.transform.up);
+        }
         
         public void UpdateWithInput(float deltaTime, float zoomInput, Vector3 rotationInput)
         {
             if (FollowCharacter && FollowCharacter.CameraFollowPoint)
             {
+                //Update Planar
+                UpdatePlanar();
+                
                 if (InvertX)
                 {
                     rotationInput.x *= -1f;
@@ -94,10 +103,12 @@ namespace KinematicCharacterController.Examples
                     rotationInput.y *= -1f;
                 }
 
+                
+                Debug.LogFormat("rotationInput.x:{0}", rotationInput.x);
                 // Process rotation input
-                Quaternion rotationFromInput = Quaternion.Euler(FollowCharacter.CameraFollowPoint.up * (rotationInput.x * RotationSpeed));
+                Quaternion rotationFromInput = Quaternion.Euler(FollowCharacter.WorldUp * (rotationInput.x * RotationSpeed));
                 PlanarDirection = rotationFromInput * PlanarDirection;
-                PlanarDirection = Vector3.Cross(FollowCharacter.CameraFollowPoint.up, Vector3.Cross(PlanarDirection, FollowCharacter.CameraFollowPoint.up));
+                PlanarDirection = Vector3.Cross(FollowCharacter.WorldUp, Vector3.Cross(PlanarDirection, FollowCharacter.WorldUp));
                 _targetVerticalAngle -= (rotationInput.y * RotationSpeed);
                 _targetVerticalAngle = Mathf.Clamp(_targetVerticalAngle, MinVerticalAngle, MaxVerticalAngle);
 
@@ -113,7 +124,7 @@ namespace KinematicCharacterController.Examples
                 _currentFollowPosition = Vector3.Lerp(_currentFollowPosition, FollowCharacter.CameraFollowPoint.position, 1f - Mathf.Exp(-FollowingSharpness * deltaTime));
                 
                 // Calculate smoothed rotation
-                Quaternion planarRot = Quaternion.LookRotation(PlanarDirection, FollowCharacter.CameraFollowPoint.up);
+                Quaternion planarRot = Quaternion.LookRotation(PlanarDirection, FollowCharacter.WorldUp);
                 Quaternion verticalRot = Quaternion.Euler(_targetVerticalAngle, 0, 0);
                 Quaternion targetRotation = Quaternion.Slerp(Transform.rotation, planarRot * verticalRot, 1f - Mathf.Exp(-RotationSharpness * deltaTime));
 

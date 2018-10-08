@@ -1,4 +1,5 @@
-﻿using System.Collections;
+﻿using System;
+using System.Collections;
 using System.Collections.Generic;
 using UnityEngine;
 
@@ -26,6 +27,11 @@ namespace KinematicCharacterController
         /// </summary>
         public abstract void UpdateRotation(ref Quaternion currentRotation, float deltaTime);
 
+        public virtual void UpdateRotation(ref Quaternion currentRotation, float deltaTime, out Vector3 deltaEuler)
+        {
+            throw new Exception("UpdateRotation is not impelement!");
+        }
+        
         /// <summary>
         /// Asks what the character's velocity should be on this character update. 
         /// Modify the "currentVelocity" to change the character's velocity.

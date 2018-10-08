@@ -5,6 +5,7 @@ namespace KinematicCharacterController.Examples
 {
     public class ExampleProneCC:BaseCharacterController
     {
+        
         [Header("Stable Movement")]
         public float MaxStableMoveSpeed = 10f;
         public float StableMovementSharpness = 15;
@@ -23,13 +24,14 @@ namespace KinematicCharacterController.Examples
         public Transform CameraFollowPoint;
         
         
-        private Vector3 WorldUp = Vector3.up;
+        public Vector3 WorldUp = Vector3.up;
         public CharacterState CurrentCharacterState { get; private set; }
 
         private Collider[] _probedColliders = new Collider[8];
         private Vector3 _moveInputVector;
         private Vector3 _lookInputVector;
         private Quaternion _lookRotation;
+        private Quaternion _lookPrevRotation = Quaternion.identity;
 
         public void SetInputs(ref PlayerCharacterInputs inputs)
         {
@@ -57,11 +59,24 @@ namespace KinematicCharacterController.Examples
             {
                 var euler = currentRotation.eulerAngles;
                 var cameraEuler = _lookRotation.eulerAngles;
-                cameraEuler.z = 0;
+                cameraEuler.z = euler.z;
                 currentRotation = Quaternion.Slerp(currentRotation, Quaternion.Euler(cameraEuler),
                     1 - Mathf.Exp(-OrientationSharpness * deltaTime));
-
             }
+        }
+        
+        public override void UpdateRotation(ref Quaternion currentRotation, float deltaTime, out Vector3 deltaEuler)
+        {
+            float delta = 0.0f;
+            if (_lookInputVector != Vector3.zero)
+            {
+                var cameraEuler = _lookRotation.eulerAngles;
+                delta = Mathf.DeltaAngle(_lookPrevRotation.eulerAngles.y, _lookRotation.eulerAngles.y);
+                _lookPrevRotation = _lookRotation;
+            }
+            
+            deltaEuler = new Vector3(0f, delta, 0f);
+            Debug.LogFormat("delata:{0}", delta);
         }
 
         public override void UpdateVelocity(ref Vector3 currentVelocity, float deltaTime)
@@ -147,7 +162,7 @@ namespace KinematicCharacterController.Examples
 
         public override void AfterCharacterUpdate(float deltaTime)
         {
-
+            
         }
 
         public override bool IsColliderValidForCollisions(Collider coll)
@@ -166,13 +181,13 @@ namespace KinematicCharacterController.Examples
 
         public override void OnGroundHit(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, ref HitStabilityReport hitStabilityReport)
         {
-            HitDraw(hitPoint, hitNormal * 100.0f, Color.black);
+            DebugDraw.DrawArrow(hitPoint, hitNormal * 2.0f, Color.black);
         }
 
         public override void OnMovementHit(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint,
             ref HitStabilityReport hitStabilityReport)
         {
-            HitDraw(hitPoint, hitNormal * 2.0f, Color.green);
+            DebugDraw.DrawArrow(hitPoint, hitNormal * 5.0f, Color.green);
         }
 
         public override void ProcessHitStabilityReport(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, Vector3 atCharacterPosition,
@@ -189,9 +204,5 @@ namespace KinematicCharacterController.Examples
         
         private static readonly float MarkerSize = 1.0f;
         private static readonly float RaySize = 2.0f;
-        private void HitDraw(Vector3 hitPoint, Vector3 hitNormal, Color color)
-        {
-            DebugDraw.DrawVector(hitPoint, hitNormal, RaySize, MarkerSize, color, 0.0f);
-        }
     }
 }

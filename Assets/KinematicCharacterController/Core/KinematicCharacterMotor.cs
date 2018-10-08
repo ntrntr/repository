@@ -185,14 +185,14 @@ namespace KinematicCharacterController
         /// </summary>
         [SerializeField]
         [Tooltip("Height of the Character Capsule")]
-        private float CapsuleYOffset = 1f;
+        private float CapsuleYOffset = 0.5f;
         
         /// <summary>
         /// The direction of the capsule.The value can be 0, 1 or 2 corresponding to the X, Y and Z axes, respectively.
         /// </summary>
         [SerializeField]
         [Tooltip("The direction of the capsule.The value can be 0, 1 or 2 corresponding to the X, Y and Z axes, respectively.")]
-        private int CapsuleDirection = 1;
+        private int CapsuleDirection = 2;
         
         /// <summary>
         /// Physics material of the character's capsule
@@ -205,7 +205,7 @@ namespace KinematicCharacterController
         /// <summary>
         /// Increases the range of dround detection, to allow snapping to ground at very high speeds
         /// </summary>    
-        [Tooltip("Increases the range of dround detection, to allow snapping to ground at very high speeds")]
+        [Tooltip("Increases the range of ground detection, to allow snapping to ground at very high speeds")]
         public float GroundDetectionExtraDistance = 0f;
         /// <summary>
         /// Maximum height of a step which the character can climb
@@ -1113,16 +1113,29 @@ namespace KinematicCharacterController
         /// </summary>
         public void UpdatePhase2(float deltaTime)
         {
+            
+            Vector3 deltaRotation = Vector3.zero;
+            
             // Handle rotation
-            this.CharacterController.UpdateRotation(ref _internalTransientRotation, deltaTime);
+            if (CapsuleDirection == 1)
+            {
+                this.CharacterController.UpdateRotation(ref _internalTransientRotation, deltaTime);
+            }
+            else
+            {
+               this.CharacterController.UpdateRotation(ref _internalTransientRotation, deltaTime, out deltaRotation); 
+            }
             TransientRotation = _internalTransientRotation;
-
+            
             // Handle move rotation
             if (_moveRotationDirty)
             {
                 TransientRotation = _moveRotationTarget;
                 _moveRotationDirty = false;
             }
+
+            // solve rotation
+            SolveRotation(deltaRotation);
             
             if (_solveMovementCollisions && InteractiveRigidbodyHandling)
             {
@@ -1282,6 +1295,37 @@ namespace KinematicCharacterController
             this.CharacterController.AfterCharacterUpdate(deltaTime);
         }
 
+
+        private float RotationStep = 5.0f;
+        /// <summary>
+        /// 处理旋转的情况
+        /// </summary>
+        /// <param name="deltaRotation"></param>
+        private void SolveRotation(Vector3 deltaRotation)
+        {
+            if (deltaRotation == Vector3.zero)
+            {
+                return;
+            }
+
+            var normal = GroundingStatus.GroundNormal;
+
+            float yRotate = Mathf.Abs(deltaRotation.y);
+            bool isNeg = deltaRotation.y < 0;
+            
+            while (yRotate > 0)
+            {
+                float rotateAngle = yRotate > RotationStep ? RotationStep : yRotate;
+                yRotate -= rotateAngle;
+                var euler = TransientRotation.eulerAngles;
+                euler.y += isNeg ? -rotateAngle : rotateAngle;
+                var forward = Quaternion.Euler(euler) * Vector3.forward;
+                var right = Vector3.Cross(normal,  forward);
+                var newFoward = Vector3.Cross(right, normal);
+                TransientRotation = Quaternion.LookRotation(newFoward, normal);
+            }
+        }
+        
         /// <summary>
         /// 是否在斜坡上
         /// Determines if motor can be considered stable on given slope normal
