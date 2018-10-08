@@ -51,7 +51,7 @@ namespace KinematicCharacterController.Examples
         public float JumpSpeed = 10f;
         public float JumpPreGroundingGraceTime = 0f;
         public float JumpPostGroundingGraceTime = 0f;
-
+        
         [Header("Misc")]
         public List<Collider> IgnoredColliders = new List<Collider>();
         public bool OrientTowardsGravity = false;
@@ -174,7 +174,7 @@ namespace KinematicCharacterController.Examples
                             if (!_isCrouching)
                             {
                                 _isCrouching = true;
-                                Motor.SetCapsuleDimensions(0.5f, 1f, 0.5f);
+                                Motor.SetCapsuleDimensions(0.5f, 1f, 0.5f,1);
                                 MeshRoot.localScale = new Vector3(1f, 0.5f, 1f);
                             }
                         }
@@ -402,7 +402,7 @@ namespace KinematicCharacterController.Examples
                         if (_isCrouching && !_shouldBeCrouching)
                         {
                             // Do an overlap test with the character's standing height to see if there are any obstructions
-                            Motor.SetCapsuleDimensions(0.5f, 2f, 1f);
+                            Motor.SetCapsuleDimensions(0.5f, 2f, 1f,1);
                             if (Motor.CharacterOverlap(
                                 Motor.TransientPosition,
                                 Motor.TransientRotation,
@@ -411,7 +411,7 @@ namespace KinematicCharacterController.Examples
                                 QueryTriggerInteraction.Ignore) > 0)
                             {
                                 // If obstructions, just stick to crouching dimensions
-                                Motor.SetCapsuleDimensions(0.5f, 1f, 0.5f);
+                                Motor.SetCapsuleDimensions(0.5f, 1f, 0.5f,1);
                             }
                             else
                             {
