@@ -1,11 +1,12 @@
 using System.Collections.Generic;
+using Core.Utils;
 using UnityEngine;
 
 namespace KinematicCharacterController.Examples
 {
     public class ExampleProneCC:BaseCharacterController
     {
-        
+        private static readonly LoggerAdapter Logger = new LoggerAdapter(typeof(ExamplePlayer));
         [Header("Stable Movement")]
         public float MaxStableMoveSpeed = 10f;
         public float StableMovementSharpness = 15;
@@ -76,7 +77,10 @@ namespace KinematicCharacterController.Examples
             }
             
             deltaEuler = new Vector3(0f, delta, 0f);
-            Debug.LogFormat("delata:{0}", delta);
+            if (delta > 0)
+            {
+                Logger.DebugFormat("delata:{0}", delta);
+            }
         }
 
         public override void UpdateVelocity(ref Vector3 currentVelocity, float deltaTime)

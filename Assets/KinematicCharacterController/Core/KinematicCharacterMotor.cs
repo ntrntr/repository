@@ -1,4 +1,7 @@
-﻿using UnityEngine;
+﻿using System.Diagnostics;
+using Core.Utils;
+using UnityEngine;
+using Debug = UnityEngine.Debug;
 
 namespace KinematicCharacterController
 {
@@ -150,6 +153,8 @@ namespace KinematicCharacterController
     [RequireComponent(typeof(CapsuleCollider))]
     public class KinematicCharacterMotor : MonoBehaviour
     {
+        private static readonly LoggerAdapter Logger = new LoggerAdapter(typeof(KinematicCharacterMotor));
+
 #pragma warning disable 0414
         /// <summary>
         /// The BaseCharacterController that manages this motor
@@ -388,6 +393,7 @@ namespace KinematicCharacterController
         private RigidbodyProjectionHit[] _internalRigidbodyProjectionHits = new RigidbodyProjectionHit[MaxMovementSweepIterations];
         private Rigidbody _lastAttachedRigidbody;
         private bool _solveMovementCollisions = true;
+        private bool _solveRotateCollisions = true;
         private bool _solveGrounding = true;
         private bool _movePositionDirty = false;
         private Vector3 _movePositionTarget = Vector3.zero;
@@ -849,6 +855,8 @@ namespace KinematicCharacterController
             resolutionDistance = resolutionDistance / Mathf.Sin(tiltAngle * Mathf.Deg2Rad);
             DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2.2f,Color.cyan, 3.0f);
 
+            
+            Logger.InfoFormat("resolutionDistance:{0}, resolutionDirection:{1}, probedCollider name:{2}\n stack:{3}", resolutionDistance, resolutionDirection, probedCollider.name, new StackTrace());
             // Solve overlap
             Vector3 resolutionMovement = resolutionDirection * (resolutionDistance + CollisionOffset);
             TransientPosition += resolutionMovement;
@@ -1061,6 +1069,7 @@ namespace KinematicCharacterController
                     // Rotation from attached rigidbody
                     Vector3 newForward = Vector3.ProjectOnPlane(Quaternion.Euler(Mathf.Rad2Deg * AttachedRigidbody.angularVelocity * deltaTime) * CharacterForward, CharacterUp).normalized;
                     TransientRotation = Quaternion.LookRotation(newForward, CharacterUp);
+                    Logger.InfoFormat("rotate frome attached rigidbody!");
                 }
 
                 // Cancel out horizontal velocity upon landing on an attached rigidbody
@@ -1295,8 +1304,75 @@ namespace KinematicCharacterController
             this.CharacterController.AfterCharacterUpdate(deltaTime);
         }
 
+        private bool SolvePenetration()
+        {
+            bool ret = false;
+            if (InteractiveRigidbodyHandling)
+            {
+                //Todo interactive rigidbody
+            }
 
-        private float RotationStep = 5.0f;
+            if (_solveRotateCollisions)
+            {
+                #region Resolve overlaps that could've been caused by rotation or physics movers simulation pushing the character
+
+                Vector3 resolutionDirection = _cachedWorldUp;
+                float resolutionDistance = 0f;
+                int iterationsMade = 0;
+                bool overlapSolved = false;
+                while (iterationsMade < MaxDiscreteCollisionIterations && !overlapSolved)
+                {
+                    int nbOverlaps =
+                        CharacterCollisionsOverlap(TransientPosition, TransientRotation, _internalProbedColliders);
+                    if (nbOverlaps > 0)
+                    {
+                        ret = true;
+                        for (int i = 0; i < nbOverlaps; i++)
+                        {
+                            // Process overlap
+                            Transform overlappedTransform = _internalProbedColliders[i].GetComponent<Transform>();
+                            //One of the colliders has to be BoxCollider, SphereCollider CapsuleCollider or a convex MeshCollider. The other one can be any type
+                            // 这个函数很实用，不是轴对齐的包围盒，去除了二个collider的closetPoint计算
+                            // Super Character Controller实用了自己的公式计算二个Collider之间ClosetPoint,相比之下，KCC简洁多
+                            if (Physics.ComputePenetration(
+                                Capsule,
+                                TransientPosition,
+                                TransientRotation,
+                                _internalProbedColliders[i],
+                                overlappedTransform.position,
+                                overlappedTransform.rotation,
+                                out resolutionDirection,
+                                out resolutionDistance))
+                            {
+                                SolvePenetration(resolutionDirection, resolutionDistance, _internalProbedColliders[i]);
+
+                                // If physicsMover, register as rigidbody hit for velocity
+                                if (InteractiveRigidbodyHandling)
+                                {
+                                    //Todo InteractiveRigidbodyHandling
+                                }
+
+                                break;
+                            }
+                        }
+                    }
+                    else
+                    {
+                        overlapSolved = true;
+                    }
+
+                    iterationsMade++;
+                }
+
+                #endregion
+            }
+
+            return ret;
+        }
+
+
+        private float RotationStep = 1.0f;
+        private float RotationLeftUpDistance = 0.1f;
         /// <summary>
         /// 处理旋转的情况
         /// </summary>
@@ -1308,12 +1384,14 @@ namespace KinematicCharacterController
                 return;
             }
 
+            
+            
             var normal = GroundingStatus.GroundNormal;
 
             float yRotate = Mathf.Abs(deltaRotation.y);
             bool isNeg = deltaRotation.y < 0;
-            
-            while (yRotate > 0)
+            bool forceQuit = false;
+            while (yRotate > 0 && !forceQuit)
             {
                 float rotateAngle = yRotate > RotationStep ? RotationStep : yRotate;
                 yRotate -= rotateAngle;
@@ -1322,7 +1400,18 @@ namespace KinematicCharacterController
                 var forward = Quaternion.Euler(euler) * Vector3.forward;
                 var right = Vector3.Cross(normal,  forward);
                 var newFoward = Vector3.Cross(right, normal);
-                TransientRotation = Quaternion.LookRotation(newFoward, normal);
+                var tmpRotation = Quaternion.LookRotation(newFoward, normal);
+                var hits = CharacterCollisionsOverlap(TransientPosition + normal * RotationLeftUpDistance / Mathf.Sin(Mathf.Deg2Rad * (90.0f - Vector3.Angle(normal, _cachedWorldUp))), tmpRotation, _internalProbedColliders);
+                if (hits > 0)
+                {
+                    forceQuit = true;
+                }
+                else
+                {
+                    Logger.InfoFormat("change rotate from:{0}->To:{1}", TransientRotation.eulerAngles, tmpRotation.eulerAngles);
+
+                    TransientRotation = tmpRotation;
+                }
             }
         }
         
