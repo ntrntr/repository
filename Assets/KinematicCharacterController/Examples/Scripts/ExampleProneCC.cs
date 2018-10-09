@@ -53,6 +53,7 @@ namespace KinematicCharacterController.Examples
             _lookInputVector = cameraPlanarDirection;
             _lookRotation = cameraPlanarRotation;
             QERotate = inputs.ClockRotate;
+            DebugDraw.DebugArrow(transform.position + new Vector3(0,2,0), (_lookRotation * Vector3.forward).normalized * 5, Color.cyan, 0);
         }
         
         

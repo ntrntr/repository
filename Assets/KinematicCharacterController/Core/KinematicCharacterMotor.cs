@@ -1379,20 +1379,15 @@ namespace KinematicCharacterController
         /// <param name="deltaRotation"></param>
         private void SolveRotation(Vector3 deltaRotation)
         {
-            if (deltaRotation == Vector3.zero)
-            {
-                return;
-            }
-
-            
-            
             var normal = GroundingStatus.GroundNormal;
 
             float yRotate = Mathf.Abs(deltaRotation.y);
             bool isNeg = deltaRotation.y < 0;
             bool forceQuit = false;
-            while (yRotate > 0 && !forceQuit)
+            bool isFirstTime = true;
+            while (yRotate > 0 && !forceQuit || isFirstTime)
             {
+                isFirstTime = false;
                 float rotateAngle = yRotate > RotationStep ? RotationStep : yRotate;
                 yRotate -= rotateAngle;
                 var euler = TransientRotation.eulerAngles;
