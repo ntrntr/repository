@@ -1,9 +1,11 @@
+using Core.Utils;
 using UnityEngine;
 
 namespace KinematicCharacterController.Examples
 {
     public class MyExamplePlayer: MonoBehaviour
     {
+        private static readonly LoggerAdapter Logger = new LoggerAdapter(typeof(MyExamplePlayer));
         public MyExampleCharacterCamera MyCharacterCamera;
         public ExampleProneCC CharacterProne;
         public float MouseSensitivity = 0.01f;
@@ -76,7 +78,9 @@ namespace KinematicCharacterController.Examples
             characterInputs.JumpDown = Input.GetKeyDown(KeyCode.Space);
             characterInputs.CrouchDown = Input.GetKeyDown(KeyCode.C);
             characterInputs.CrouchUp = Input.GetKeyUp(KeyCode.C);
-
+            characterInputs.ClockRotate = Input.GetKey(KeyCode.Q) ? 1 : 0;
+            characterInputs.ClockRotate = Input.GetKey(KeyCode.E) ? -1 : characterInputs.ClockRotate;
+            
             // Apply inputs to character
             CharacterProne.SetInputs(ref characterInputs);
         }

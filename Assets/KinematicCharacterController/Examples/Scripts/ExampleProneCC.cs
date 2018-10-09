@@ -33,6 +33,7 @@ namespace KinematicCharacterController.Examples
         private Vector3 _lookInputVector;
         private Quaternion _lookRotation;
         private Quaternion _lookPrevRotation = Quaternion.identity;
+        private int QERotate = 0;
 
         public void SetInputs(ref PlayerCharacterInputs inputs)
         {
@@ -51,6 +52,7 @@ namespace KinematicCharacterController.Examples
             _moveInputVector = cameraPlanarRotation * moveInputVector;
             _lookInputVector = cameraPlanarDirection;
             _lookRotation = cameraPlanarRotation;
+            QERotate = inputs.ClockRotate;
         }
         
         
@@ -75,12 +77,9 @@ namespace KinematicCharacterController.Examples
                 delta = Mathf.DeltaAngle(_lookPrevRotation.eulerAngles.y, _lookRotation.eulerAngles.y);
                 _lookPrevRotation = _lookRotation;
             }
-            
+
+            delta = QERotate * deltaTime * -50f;
             deltaEuler = new Vector3(0f, delta, 0f);
-            if (delta > 0)
-            {
-                Logger.DebugFormat("delata:{0}", delta);
-            }
         }
 
         public override void UpdateVelocity(ref Vector3 currentVelocity, float deltaTime)

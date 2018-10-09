@@ -104,7 +104,6 @@ namespace KinematicCharacterController.Examples
                 }
 
                 
-                Debug.LogFormat("rotationInput.x:{0}", rotationInput.x);
                 // Process rotation input
                 Quaternion rotationFromInput = Quaternion.Euler(FollowCharacter.WorldUp * (rotationInput.x * RotationSpeed));
                 PlanarDirection = rotationFromInput * PlanarDirection;
