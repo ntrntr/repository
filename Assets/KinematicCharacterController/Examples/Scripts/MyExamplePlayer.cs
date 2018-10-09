@@ -20,6 +20,9 @@ namespace KinematicCharacterController.Examples
 
             // Tell camera to follow transform
             MyCharacterCamera.SetFollowCharacter(CharacterProne);
+            
+            App.Shared.Log4ConfigManager.InitLog4net();
+            
         }
 
         private void Update()

@@ -1,0 +1,182 @@
+<!-- =================================================== -->
+<!-- log4net configuration file by Jashan Chittesh, 2008 -->
+<!-- You're free to use this in any way you wish ;-)     -->
+<!-- =================================================== -->
+<log4net>
+
+  <!-- This appender is more for server applications / game servers -->
+  <!-- It appends to file, so many sessions are stored in one file. -->
+  <!-- To avoid huge files, a rolling file appender is used that    -->
+  <!-- starts a new file every day. Timestamps are logged in a      -->
+  <!-- common hour / minute / seconds format.                       -->
+  <appender name="RollingFileAppender" type="log4net.Appender.RollingFileAppender">
+     <file type="log4net.Util.PatternString" value="log/Debug.log" />
+    <!-- <appendToFile value="true" /> -->
+    <appendToFile value="false" />
+    <rollingStyle value="Size" />
+    <maxSizeRollBackups value="10" />
+    <maximumFileSize value="60MB" />
+    <staticLogFileName value="true" />
+    <layout type="log4net.Layout.PatternLayout">
+      <conversionPattern value="%date{HH:mm:ss,fff} %-5level %-10logger - %message%newline" />
+    </layout>
+    <encoding value="utf-8" />
+  </appender>
+  
+  <appender name="RollingFileAppenderPid" type="log4net.Appender.RollingFileAppender">
+     <file type="log4net.Util.PatternString" value="log/Debug-[%processid].log" />
+    <!-- <appendToFile value="true" /> -->
+    <appendToFile value="false" />
+    <rollingStyle value="Size" />
+    <maxSizeRollBackups value="10" />
+    <maximumFileSize value="60MB" />
+    <staticLogFileName value="true" />
+    <layout type="log4net.Layout.PatternLayout">
+      <conversionPattern value="%date{HH:mm:ss,fff} %-5level %-10logger - %message%newline" />
+    </layout>
+    <encoding value="utf-8" />
+  </appender>
+
+  <!-- This appender is more for server applications / game servers -->
+  <!-- It appends to file, so many sessions are stored in one file. -->
+  <!-- To avoid huge files, a rolling file appender is used that    -->
+  <!-- starts a new file every day. Timestamps are logged in a      -->
+  <!-- common hour / minute / seconds format.                       -->
+  <appender name="ErrorRollingFileAppender" type="log4net.Appender.RollingFileAppender">
+    <file type="log4net.Util.PatternString" value="log/Error.log" />
+	<threshold value="ERROR"/>
+    <appendToFile value="true" />
+    <rollingStyle value="Size" />
+    <maxSizeRollBackups value="10" />
+    <maximumFileSize value="60MB" />
+    <staticLogFileName value="true" />
+    <layout type="log4net.Layout.PatternLayout">
+      <conversionPattern value="%date{HH:mm:ss,fff} %-5level %-10logger - %message%newline" />
+    </layout>
+    <encoding value="utf-8" />
+  </appender>
+
+  <appender name="FrameAppender" type="log4net.Appender.RollingFileAppender">
+    <file type="log4net.Util.PatternString" value="log/Frame.log" />
+    <appendToFile value="false" />
+    <rollingStyle value="Size" />
+    <maxSizeRollBackups value="10" />
+    <maximumFileSize value="60MB" />
+    <staticLogFileName value="true" />
+    <layout type="log4net.Layout.PatternLayout">
+      <conversionPattern value="%date{HH:mm:ss,fff} %-5level %-10logger - %message%newline" />
+    </layout>
+    <encoding value="utf-8" />
+  </appender>
+  
+  <appender name="Console" type="Loxodon.Log.Appender.UnityDebugAppender">
+    <threshold value="Debug"/>
+    <layout type="log4net.Layout.PatternLayout">
+      <conversionPattern value="%date Thread[%thread] %-5level %logger - %message%newline" />
+    </layout>
+  </appender>
+
+  <!-- This configures the loggers. DEBUG is good for development   -->
+  <!-- and testing. Use INFO for production.                        -->
+  <root>
+    <level value="DEBUG" />
+    <appender-ref ref="ErrorRollingFileAppender" />
+    
+    <appender-ref ref="RollingFileAppender" />
+    <appender-ref ref="Console" />
+  </root>
+  <logger name="Core.Network.ENet.ENetNetworkChannel">
+    <level value="INFO" />
+  </logger>    
+  <logger name="Core.Network.AbstractNetworkService">
+    <level value="INFO" />
+  </logger>
+  <logger name="Core.Network.AbstractNetowrkChannel">
+    <level value="INFO" />
+  </logger>
+  <logger name="Core.Network.ENet.AbstractENetNetworkService">
+    <level value="INFO" />
+  </logger>
+
+  <logger name="prediction.vehicle.time">
+    <level value="INFO" />
+  </logger>
+  <logger name="App.Client.Console.SnapshotMessageHandler">
+    <level value="INFO" />
+  </logger>
+  <logger name="App.Server">
+    <level value="INFO" />
+  </logger>
+   
+  <logger name="Core.BulletSimulation.BulletHitSimulator">
+    <level value="INFO" />
+  </logger>
+  <logger name="App.Shared.GameModules.Vehicle">
+    <level value="INFO" />
+  </logger>
+  <logger name="prediction.vehicle">
+    <level value="INFO" />
+  </logger>
+  
+  <logger name="Core.BulletSimulation.BulletMoveSimulator">
+    <level value="INFO" />
+  </logger>
+   <logger name="App.Shared.GameModules.Bullet.BulletEntityAdapter">
+    <level value="INFO" />
+  </logger>
+  <logger name="Core.Time.TimeManager">
+    <level value="ERROR" />
+  </logger>
+  <logger name="Core.AssetManager.LoadRequestManagerSystem">
+    <level value="INFO" />
+  </logger>
+  <logger name="App.Client.MessageHandler">
+    <level value="INFO" />
+  </logger>
+  <logger name="App.Shared.UserPhysics">
+    <level value="INFO" />
+  </logger>
+  <logger name="App.Client.GameModules.Vehicle">
+    <level value="INFO" />
+  </logger>
+  
+  <logger name="App.Shared.GameModules.Vehicle.VehicleEntityUtility">
+    <level value="INFO" />
+  </logger>
+  
+   <logger name="prediction.vehicle.VehicleCmdExecuteManagerSystem">
+    <level value="INFO" />
+  </logger>
+  
+  <logger name="VehicleStateUtility">
+    <level value="INFO" />
+  </logger>
+  
+  <logger name="App.Shared.Components.Vehicle.VehicleDataComponent">
+    <level value="INFO" />
+  </logger>
+  <logger name="prediction.user">
+    <level value="INFO" />
+  </logger>
+
+  <logger name="FrameTest">
+	  <level value="ALL"/>
+	  <appender-ref ref="FrameAppender" />
+  </logger>
+  
+  <logger name="App.Client.ClientSystems.DriveTimeSystem">
+    <level value="INFO" />
+  </logger>
+  
+  <logger name = "App.Client.GameModules.Ui.Logic">
+	<level value = "INFO" />
+  </logger>
+  
+  <logger name = "App.Client.GameModules.Ui.Models.Common">
+	<level value = "INFO" />
+  </logger>
+  
+  <logger name = "App.Client.CastObjectUtil">
+	<level value = "INFO" />
+  </logger>
+</log4net>
