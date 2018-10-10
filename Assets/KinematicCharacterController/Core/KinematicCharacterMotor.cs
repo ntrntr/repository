@@ -1434,16 +1434,16 @@ namespace KinematicCharacterController
             TransientRotation = _internalTransientRotation;
             
             RaycastHit closestSweepHit;
-            if (CharacterCollisionsSweep(liftUpPosition, TransientRotation, -groundNormal, liftUpDist, out closestSweepHit,
+            
+            if (CharacterCollisionsSweep(liftUpPosition, TransientRotation, -expectedGroundNormal, liftUpDist, out closestSweepHit,
                     _internalCharacterHits) > 0)
             {
-                float tiltAngle = 90f - Vector3.Angle(closestSweepHit.normal, expectedGroundNormal);
-                var resolutionDistance = closestSweepHit.distance / Mathf.Sin(tiltAngle * Mathf.Deg2Rad);
-                Logger.InfoFormat("dist:{0}, before:{1}, after:{2}",GetVectorString(Vector3.Project(closestSweepHit.normal, expectedGroundNormal).normalized * -resolutionDistance), GetVectorString(_internalTransientPosition), GetVectorString(liftUpPosition + Vector3.Project(closestSweepHit.normal, expectedGroundNormal).normalized * -resolutionDistance + (expectedGroundNormal * CollisionOffset)));
+                Logger.InfoFormat("dist:{0}, before:{1}, after:{2}",- expectedGroundNormal * closestSweepHit.distance, GetVectorString(_internalTransientPosition), liftUpPosition - expectedGroundNormal * closestSweepHit.distance  + (expectedGroundNormal * CollisionOffset), TransientRotation);
                 InternalMoveCharacterPosition(ref _internalTransientPosition,
-                    liftUpPosition + Vector3.Project(closestSweepHit.normal, expectedGroundNormal).normalized * -resolutionDistance  + (expectedGroundNormal * CollisionOffset), TransientRotation);
+                    liftUpPosition - expectedGroundNormal * closestSweepHit.distance  + (expectedGroundNormal * CollisionOffset), TransientRotation);
             }
-                
+
+            TransientPosition = _internalTransientPosition;
 
             if (!GroundingStatus.IsStableOnGround)
             {
