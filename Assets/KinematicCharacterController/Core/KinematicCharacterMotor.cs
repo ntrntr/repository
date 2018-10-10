@@ -1,4 +1,5 @@
-﻿using System.Diagnostics;
+﻿using System;
+using System.Diagnostics;
 using Core.Utils;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
@@ -296,6 +297,9 @@ namespace KinematicCharacterController
         /// </summary>
         [Tooltip("(We suggest leaving this off. This has a pretty heavy performance cost, and is not necessary unless you start seeing situations where a fast-moving character moves through colliders) Makes sure the character cannot perform a move at all if it would be overlapping with any collidable objects at its destination. Useful for preventing \"tunneling\". ")]
         public bool SafeMovement = true;
+        
+        [Tooltip("(We suggest leaving this off. This has a pretty heavy performance cost, and is not necessary unless you start seeing situations where a fast-moving character moves through colliders) Makes sure the character cannot perform a move at all if it would be overlapping with any collidable objects at its destination. Useful for preventing \"tunneling\". ")]
+        public bool SafeRotate = false;
 
         /// <summary>
         /// Contains the current grounding information
@@ -346,18 +350,22 @@ namespace KinematicCharacterController
         /// </summary>
         public Vector3 CharacterTransformToCapsuleCenter { get; private set; }
         /// <summary>
+        /// 到最第点
         /// Vector3 from the character transform position to the capsule bottom
         /// </summary>
         public Vector3 CharacterTransformToCapsuleBottom { get; private set; }
         /// <summary>
+        /// 到最高点
         /// Vector3 from the character transform position to the capsule top
         /// </summary>
         public Vector3 CharacterTransformToCapsuleTop { get; private set; }
         /// <summary>
+        /// 到底部半球中心
         /// Vector3 from the character transform position to the capsule bottom hemi center
         /// </summary>
         public Vector3 CharacterTransformToCapsuleBottomHemi { get; private set; }
         /// <summary>
+        /// 到顶部半球中心
         /// Vector3 from the character transform position to the capsule top hemi center
         /// </summary>
         public Vector3 CharacterTransformToCapsuleTopHemi { get; private set; }
@@ -394,6 +402,9 @@ namespace KinematicCharacterController
         private Rigidbody _lastAttachedRigidbody;
         private bool _solveMovementCollisions = true;
         private bool _solveRotateCollisions = true;
+        /// <summary>
+        /// Sets whether or not grounding will be evaluated for all hits
+        /// </summary>
         private bool _solveGrounding = true;
         private bool _movePositionDirty = false;
         private Vector3 _movePositionTarget = Vector3.zero;
@@ -926,7 +937,7 @@ namespace KinematicCharacterController
                 {
                     TransientPosition = _movePositionTarget;
                 }
-
+                Logger.InfoFormat("_movePositionDirty in UpdatePhase1");
                 _movePositionDirty = false;
             }
             #endregion
@@ -1379,34 +1390,60 @@ namespace KinematicCharacterController
         /// <param name="deltaRotation"></param>
         private void SolveRotation(Vector3 deltaRotation)
         {
-            var normal = GroundingStatus.GroundNormal;
+            var groundNormal = GroundingStatus.GroundNormal;
 
-            float yRotate = Mathf.Abs(deltaRotation.y);
+            if (deltaRotation == Vector3.zero && groundNormal == LastGroundingStatus.GroundNormal)
+            {
+                Logger.InfoFormat("deltaRotation is zero, ground normal is not changed!!!");
+                return;
+            }
+            
+            float rotateAngleRemain = Mathf.Abs(deltaRotation.y);
             bool isNeg = deltaRotation.y < 0;
             bool forceQuit = false;
             bool isFirstTime = true;
-            while (yRotate > 0 && !forceQuit || isFirstTime)
+            Vector3 expectedGroundNormal = _cachedWorldUp;
+            var liftUpDist =  RotationLeftUpDistance /
+                             Mathf.Sin(Mathf.Deg2Rad * (90.0f - Vector3.Angle(expectedGroundNormal, _cachedWorldUp)));
+            var liftUpPosition = TransientPosition + expectedGroundNormal * liftUpDist;
+            while (rotateAngleRemain > 0 && !forceQuit || isFirstTime)
             {
                 isFirstTime = false;
-                float rotateAngle = yRotate > RotationStep ? RotationStep : yRotate;
-                yRotate -= rotateAngle;
-                var euler = TransientRotation.eulerAngles;
-                euler.y += isNeg ? -rotateAngle : rotateAngle;
-                var forward = Quaternion.Euler(euler) * Vector3.forward;
-                var right = Vector3.Cross(normal,  forward);
-                var newFoward = Vector3.Cross(right, normal);
-                var tmpRotation = Quaternion.LookRotation(newFoward, normal);
-                var hits = CharacterCollisionsOverlap(TransientPosition + normal * RotationLeftUpDistance / Mathf.Sin(Mathf.Deg2Rad * (90.0f - Vector3.Angle(normal, _cachedWorldUp))), tmpRotation, _internalProbedColliders);
-                if (hits > 0)
+                float stepRotateAngle = rotateAngleRemain > RotationStep ? RotationStep : rotateAngleRemain;
+                var targetRotate = Quaternion.AngleAxis(stepRotateAngle * (isNeg ? 1f:-1f), Vector3.up) * TransientRotation;
+                var forward = targetRotate * Vector3.forward;
+                
+                forward = GetDirectionTangentToSurface(forward, groundNormal);
+                
+                targetRotate = Quaternion.LookRotation(forward, Vector3.up);
+                if (CharacterCollisionsOverlap(liftUpPosition, targetRotate, _internalProbedColliders) > 0)
                 {
                     forceQuit = true;
                 }
                 else
                 {
-                    Logger.InfoFormat("change rotate from:{0}->To:{1}", TransientRotation.eulerAngles, tmpRotation.eulerAngles);
-
-                    TransientRotation = tmpRotation;
+                    Logger.InfoFormat("change rotate from:[{0},{1},{2}]->To:[{3},{4},{5}], normal:{6}, GroundCollider:{7}", TransientRotation.eulerAngles.x, TransientRotation.eulerAngles.y, TransientRotation.eulerAngles.z, targetRotate.eulerAngles.x, targetRotate.eulerAngles.y, targetRotate.eulerAngles.z, groundNormal, GroundingStatus.GroundCollider.name);
+                    InternalRotateCharacterRotation(ref _internalTransientRotation, targetRotate, liftUpPosition);
                 }
+                
+                rotateAngleRemain -= stepRotateAngle;
+            }
+
+            TransientRotation = _internalTransientRotation;
+            
+            RaycastHit closestSweepHit;
+            if (CharacterCollisionsSweep(liftUpPosition, TransientRotation, -groundNormal, liftUpDist, out closestSweepHit,
+                    _internalCharacterHits) > 0)
+            {
+//                InternalMoveCharacterPosition(ref _internalTransientPosition,
+//                    liftUpPosition + (-groundNormal * closestSweepHit.distance) + (closestSweepHit.normal * CollisionOffset), TransientRotation);
+            }
+                
+
+            if (!GroundingStatus.IsStableOnGround)
+            {
+                Logger.InfoFormat("is not stable on ground, GroundingStatus.GroundNormal:{0}, GroundingStatus.GroundPoint:{1}", GroundingStatus.GroundNormal, GroundingStatus.GroundPoint);
+                DebugDraw.DrawArrow(GroundingStatus.GroundPoint, GroundingStatus.GroundNormal.normalized * 10f, Color.magenta, 0);
             }
         }
         
@@ -1416,10 +1453,29 @@ namespace KinematicCharacterController
         /// </summary>
         private bool IsStableOnNormal(Vector3 normal)
         {
+            //return Vector3.Angle(CharacterUp, normal) <= MaxStableSlopeAngle;
             return Vector3.Angle(CharacterUp, normal) <= MaxStableSlopeAngle;
         }
 
+
+        private Vector3 GetGroundSweepDirection(Quaternion rotation, int direction)
+        {
+            direction = 1;
+            Vector3 ret = -_cachedWorldUp;
+            if (direction == 1)
+            {
+                ret = rotation * ret;
+            }
+            else
+            {
+                
+            }
+
+            return ret;
+        }
+        
         /// <summary>
+        /// 探测地面
         /// Probes for valid ground and midifies the input transientPosition if ground snapping occurs
         /// </summary>
         public void ProbeGround(ref Vector3 probingPosition, Quaternion atRotation, float probingDistance, ref CharacterGroundingReport groundingReport)
@@ -1433,7 +1489,9 @@ namespace KinematicCharacterController
             RaycastHit groundSweepHit = new RaycastHit();
             bool groundSweepingIsOver = false;
             Vector3 groundSweepPosition = probingPosition;
-            Vector3 groundSweepDirection = (atRotation * -_cachedWorldUp);
+            //需要探测的方向
+            //Todo 
+            Vector3 groundSweepDirection = GetGroundSweepDirection(atRotation, CapsuleDirection);
             float groundProbeDistanceRemaining = probingDistance;
             while (groundProbeDistanceRemaining > 0 && (groundSweepsMade <= MaxGroundingSweepIterations) && !groundSweepingIsOver)
             {
@@ -1455,6 +1513,7 @@ namespace KinematicCharacterController
                         if (groundHitStabilityReport.IsOnEmptySideOfLedge && groundHitStabilityReport.DistanceFromLedge > MaxStableDistanceFromLedge)
                         {
                             groundHitStabilityReport.IsStable = false;
+                            Logger.InfoFormat("IsOnEmptySideOfLedge is ture, DistanceFromLedge > MaxStableDistanceFromLedge:{0}, set IsStable to false", MaxStableDistanceFromLedge);
                         }
                     }
 
@@ -1834,12 +1893,40 @@ namespace KinematicCharacterController
             if(movementValid)
             {
                 movedPosition = targetPosition;
-                return true;
             }
             
-            return false;
+            return movementValid;
         }
 
+
+        /// <summary>
+        /// 所有的旋转修改，需要调用这个
+        /// </summary>
+        /// <param name="currentRotation"></param>
+        /// <param name="targetRotation"></param>
+        /// <param name="atPosition"></param>
+        /// <returns></returns>
+        private bool InternalRotateCharacterRotation(ref Quaternion currentRotation, Quaternion targetRotation, Vector3 atPosition)
+        {
+            bool rotateValid = true;
+
+            if (SafeRotate)
+            {
+                int nbOverlaps = CharacterCollisionsOverlap(atPosition, targetRotation, _internalProbedColliders);
+                if (nbOverlaps > 0)
+                {
+                    rotateValid = false;
+                }
+            }
+
+            if (rotateValid)
+            {
+                currentRotation = targetRotation;
+            }
+            
+            return rotateValid;
+        }
+        
         /// <summary>
         /// Takes into account rigidbody hits for adding to the velocity
         /// </summary>
@@ -1944,6 +2031,7 @@ namespace KinematicCharacterController
         }
 
         /// <summary>
+        /// 估算地面，检查是否平稳，楼梯，边缘
         /// Determines if the motor is considered stable on a given hit
         /// </summary>
         public void EvaluateHitStability(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, Vector3 atCharacterPosition, Quaternion atCharacterRotation, ref HitStabilityReport stabilityReport)
@@ -1955,7 +2043,9 @@ namespace KinematicCharacterController
             }
 
             bool isStableOnNormal = false;
+
             Vector3 atCharacterUp = atCharacterRotation * Vector3.up;
+
             Vector3 innerHitDirection = Vector3.ProjectOnPlane(hitNormal, atCharacterUp).normalized;
 
             isStableOnNormal = this.IsStableOnNormal(hitNormal);
@@ -2043,7 +2133,9 @@ namespace KinematicCharacterController
             int nbStepHits = 0;
             Collider tmpCollider;
             RaycastHit outerStepHit;
+            
             Vector3 characterUp = characterRotation * Vector3.up;
+            
             Vector3 stepCheckStartPos = characterPosition;
             
             // Do outer step check with capsule cast on hit point
@@ -2084,6 +2176,26 @@ namespace KinematicCharacterController
             }
         }
 
+
+        private Vector3 GetBottomPoint(Vector3 pos, Quaternion rotate, int direction)
+        {
+            Vector3 ret = pos;
+
+            if (direction == 1)
+            {
+                ret = pos + (rotate * CharacterTransformToCapsuleBottom);
+            }
+            else if (direction == 2)
+            {
+                ret = pos + (rotate * CharacterTransformToCapsuleCenter) + (rotate * -_cachedWorldUp).normalized * CapsuleRadius;
+            }
+            else
+            {
+                throw new Exception("please impl GetBottomPoint!");
+            }
+            return ret;
+        }
+        
         /// <summary>
         /// 验证是否有效
         /// </summary>
@@ -2092,11 +2204,12 @@ namespace KinematicCharacterController
         /// <param name="characterRotation"></param>
         /// <param name="innerHitDirection"></param>
         /// <param name="stepCheckStartPos"></param>
-        /// <param name="hitCollider"></param>
+        /// <param name="hitCollider">地面</param>
         /// <returns></returns>
         private bool CheckStepValidity(int nbStepHits, Vector3 characterPosition, Quaternion characterRotation, Vector3 innerHitDirection, Vector3 stepCheckStartPos, out Collider hitCollider)
         {
             hitCollider = null;
+            
             Vector3 characterUp = characterRotation * Vector3.up;
 
             // Find the farthest valid hit for stepping
@@ -2117,7 +2230,9 @@ namespace KinematicCharacterController
                     }
                 }
 
-                Vector3 characterBottom = characterPosition + (characterRotation * CharacterTransformToCapsuleBottom);
+                // 方向不同，最低的点不同
+                Vector3 characterBottom = GetBottomPoint(characterPosition, characterRotation, CapsuleDirection);
+                
                 float hitHeight = Vector3.Project(farthestHit.point - characterBottom, characterUp).magnitude;
 
                 Vector3 characterPositionAtHit = stepCheckStartPos + (-characterUp * (farthestHit.distance - CollisionOffset));
@@ -2125,6 +2240,7 @@ namespace KinematicCharacterController
                 if (hitHeight <= MaxStepHeight)
                 {
                     int atStepOverlaps = CharacterCollisionsOverlap(characterPositionAtHit, characterRotation, _internalProbedColliders);
+                    // 没有overlap
                     if (atStepOverlaps <= 0)
                     {
                         // Check for outer hit slope normal stability at the step position
@@ -2464,6 +2580,7 @@ namespace KinematicCharacterController
         }
 
         /// <summary>
+        /// 检查沿着胶囊体下的方向碰撞检查
         /// Casts the character volume in the character's downward direction to detect ground
         /// </summary>
         /// <returns> Returns the number of hits </returns>
