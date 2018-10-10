@@ -1471,7 +1471,6 @@ namespace KinematicCharacterController
 
         private Vector3 GetGroundSweepDirection(Quaternion rotation, int direction)
         {
-            direction = 1;
             Vector3 ret = -_cachedWorldUp;
             if (direction == 1)
             {
@@ -2056,7 +2055,8 @@ namespace KinematicCharacterController
 
             bool isStableOnNormal = false;
 
-            Vector3 atCharacterUp = atCharacterRotation * Vector3.up;
+            //Todo 
+            Vector3 atCharacterUp = GetGroundSweepDirection(atCharacterRotation, CapsuleDirection);
 
             Vector3 innerHitDirection = Vector3.ProjectOnPlane(hitNormal, atCharacterUp).normalized;
 
