@@ -1438,9 +1438,9 @@ namespace KinematicCharacterController
             if (CharacterCollisionsSweep(liftUpPosition, TransientRotation, -expectedGroundNormal, liftUpDist, out closestSweepHit,
                     _internalCharacterHits) > 0)
             {
-                Logger.InfoFormat("dist:{0}, before:{1}, after:{2}",- expectedGroundNormal * closestSweepHit.distance, GetVectorString(_internalTransientPosition), liftUpPosition - expectedGroundNormal * closestSweepHit.distance  + (expectedGroundNormal * CollisionOffset), TransientRotation);
+                Logger.InfoFormat("dist:{0}, before:{1}, after:{2}",- expectedGroundNormal * closestSweepHit.distance,GetVectorString(_internalTransientPosition) ,GetVectorString(_internalTransientPosition), liftUpPosition - expectedGroundNormal * closestSweepHit.distance  + (expectedGroundNormal * CollisionOffset));
                 InternalMoveCharacterPosition(ref _internalTransientPosition,
-                    liftUpPosition - expectedGroundNormal * closestSweepHit.distance  + (expectedGroundNormal * CollisionOffset), TransientRotation);
+                    liftUpPosition - expectedGroundNormal * closestSweepHit.distance  + (expectedGroundNormal * 0), TransientRotation);
             }
 
             TransientPosition = _internalTransientPosition;
