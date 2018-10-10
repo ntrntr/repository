@@ -102,6 +102,7 @@ namespace KinematicCharacterController
         public Vector3 GroundNormal; 
         public Vector3 InnerGroundNormal;
         public Vector3 OuterGroundNormal;
+        public Collider GroundCollider;
 
         public void CopyFrom(CharacterGroundingReport groundingReport)
         {
@@ -111,6 +112,7 @@ namespace KinematicCharacterController
             GroundNormal = groundingReport.GroundNormal;
             InnerGroundNormal = groundingReport.InnerGroundNormal;
             OuterGroundNormal = groundingReport.OuterGroundNormal;
+            GroundCollider = groundingReport.GroundCollider;
         }
     }
 
@@ -859,12 +861,12 @@ namespace KinematicCharacterController
             // Resolve along obstruction direction
             Vector3 originalResolutionDirection = resolutionDirection;
             HitStabilityReport mockReport = new HitStabilityReport();
-            DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2, Color.red, 3.0f);
+            DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2, Color.red, 5.0f);
             mockReport.IsStable = IsStableOnNormal(resolutionDirection);
             resolutionDirection = GetObstructionNormal(resolutionDirection, mockReport);
             float tiltAngle = 90f - Vector3.Angle(originalResolutionDirection, resolutionDirection);
             resolutionDistance = resolutionDistance / Mathf.Sin(tiltAngle * Mathf.Deg2Rad);
-            DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2.2f,Color.cyan, 3.0f);
+            DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2.2f,Color.cyan, 5.0f);
 
             
             Logger.InfoFormat("resolutionDistance:{0}, resolutionDirection:{1}, probedCollider name:{2}\n stack:{3}", resolutionDistance, resolutionDirection, probedCollider.name, new StackTrace());
@@ -1383,7 +1385,7 @@ namespace KinematicCharacterController
 
 
         private float RotationStep = 1.0f;
-        private float RotationLeftUpDistance = 0.1f;
+        private float RotationLeftUpDistance = 0.3f;
         /// <summary>
         /// 处理旋转的情况
         /// </summary>
@@ -1392,11 +1394,11 @@ namespace KinematicCharacterController
         {
             var groundNormal = GroundingStatus.GroundNormal;
 
-            if (deltaRotation == Vector3.zero && groundNormal == LastGroundingStatus.GroundNormal)
-            {
-                Logger.InfoFormat("deltaRotation is zero, ground normal is not changed!!!");
-                return;
-            }
+//            if (deltaRotation == Vector3.zero && groundNormal == LastGroundingStatus.GroundNormal && GroundingStatus.GroundCollider == LastGroundingStatus.GroundCollider)
+//            {
+//                Logger.InfoFormat("deltaRotation is zero, ground normal is not changed!!!,{0}", GroundingStatus.GroundCollider.name);
+//                return;
+//            }
             
             float rotateAngleRemain = Mathf.Abs(deltaRotation.y);
             bool isNeg = deltaRotation.y < 0;
@@ -1422,7 +1424,7 @@ namespace KinematicCharacterController
                 }
                 else
                 {
-                    Logger.InfoFormat("change rotate from:[{0},{1},{2}]->To:[{3},{4},{5}], normal:{6}, GroundCollider:{7}", TransientRotation.eulerAngles.x, TransientRotation.eulerAngles.y, TransientRotation.eulerAngles.z, targetRotate.eulerAngles.x, targetRotate.eulerAngles.y, targetRotate.eulerAngles.z, groundNormal, GroundingStatus.GroundCollider.name);
+                    //Logger.InfoFormat("change rotate from:[{0},{1},{2}]->To:[{3},{4},{5}], normal:{6}, GroundCollider:{7}, lastCollider:{8}", TransientRotation.eulerAngles.x, TransientRotation.eulerAngles.y, TransientRotation.eulerAngles.z, targetRotate.eulerAngles.x, targetRotate.eulerAngles.y, targetRotate.eulerAngles.z, groundNormal, GroundingStatus.GroundCollider.name, LastGroundingStatus.GroundCollider.name);
                     InternalRotateCharacterRotation(ref _internalTransientRotation, targetRotate, liftUpPosition);
                 }
                 
@@ -1435,8 +1437,11 @@ namespace KinematicCharacterController
             if (CharacterCollisionsSweep(liftUpPosition, TransientRotation, -groundNormal, liftUpDist, out closestSweepHit,
                     _internalCharacterHits) > 0)
             {
-//                InternalMoveCharacterPosition(ref _internalTransientPosition,
-//                    liftUpPosition + (-groundNormal * closestSweepHit.distance) + (closestSweepHit.normal * CollisionOffset), TransientRotation);
+                float tiltAngle = 90f - Vector3.Angle(closestSweepHit.normal, expectedGroundNormal);
+                var resolutionDistance = closestSweepHit.distance / Mathf.Sin(tiltAngle * Mathf.Deg2Rad);
+                Logger.InfoFormat("dist:{0}, before:{1}, after:{2}",GetVectorString(Vector3.Project(closestSweepHit.normal, expectedGroundNormal).normalized * -resolutionDistance), GetVectorString(_internalTransientPosition), GetVectorString(liftUpPosition + Vector3.Project(closestSweepHit.normal, expectedGroundNormal).normalized * -resolutionDistance + (expectedGroundNormal * CollisionOffset)));
+                InternalMoveCharacterPosition(ref _internalTransientPosition,
+                    liftUpPosition + Vector3.Project(closestSweepHit.normal, expectedGroundNormal).normalized * -resolutionDistance  + (expectedGroundNormal * CollisionOffset), TransientRotation);
             }
                 
 
@@ -1446,6 +1451,11 @@ namespace KinematicCharacterController
                 DebugDraw.DrawArrow(GroundingStatus.GroundPoint, GroundingStatus.GroundNormal.normalized * 10f, Color.magenta, 0);
             }
         }
+
+        private string GetVectorString(Vector3 vec)
+        {
+            return string.Format("[{0:F4},{1:F4},{2:F4}]", vec.x, vec.y, vec.z);
+        }
         
         /// <summary>
         /// 是否在斜坡上
@@ -1454,7 +1464,8 @@ namespace KinematicCharacterController
         private bool IsStableOnNormal(Vector3 normal)
         {
             //return Vector3.Angle(CharacterUp, normal) <= MaxStableSlopeAngle;
-            return Vector3.Angle(CharacterUp, normal) <= MaxStableSlopeAngle;
+            return Vector3.Angle(_cachedWorldUp, normal) <= MaxStableSlopeAngle;
+            //return Vector3.Angle(CharacterUp, normal) <= MaxStableSlopeAngle;
         }
 
 
@@ -1782,6 +1793,7 @@ namespace KinematicCharacterController
             {
                 Vector3 obstructionLeftAlongGround = Vector3.Cross(GroundingStatus.GroundNormal, obstructionNormal).normalized;
                 obstructionNormal = Vector3.Cross(obstructionLeftAlongGround, CharacterUp).normalized;
+                Logger.InfoFormat("obstructionNormal is changed!!!!!");
             }
 
             // Catch cases where cross product between parallel normals returned 0
