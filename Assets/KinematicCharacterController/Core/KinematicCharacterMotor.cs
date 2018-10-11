@@ -1435,7 +1435,18 @@ namespace KinematicCharacterController
             Vector3 expectedGroundNormal = _cachedWorldUp;
             var liftUpDist =  RotationLeftUpDistance /
                              Mathf.Sin(Mathf.Deg2Rad * (90.0f - Vector3.Angle(expectedGroundNormal, _cachedWorldUp)));
-            var liftUpPosition = TransientPosition + expectedGroundNormal * liftUpDist;
+            
+            RaycastHit raycastHit;
+            if (CharacterCollisionsSweep(TransientPosition, TransientRotation, expectedGroundNormal, 
+                    liftUpDist, out raycastHit, 
+                    _internalCharacterHits) > 0)
+            {
+                liftUpDist = raycastHit.distance /
+                             Mathf.Sin(Mathf.Deg2Rad * (90.0f - Vector3.Angle(expectedGroundNormal, _cachedWorldUp)));
+            }
+
+            Vector3 liftUpPosition = TransientPosition + expectedGroundNormal * liftUpDist;
+
             while (rotateAngleRemain > 0 && !forceQuit || isFirstTime)
             {
                 isFirstTime = false;
@@ -1558,7 +1569,8 @@ namespace KinematicCharacterController
             while (groundProbeDistanceRemaining > 0 && (groundSweepsMade <= MaxGroundingSweepIterations) && !groundSweepingIsOver)
             {
                 // Sweep for ground detection
-                if (CharacterGroundSweep(
+                // Todo change to sphere ground detection
+                if (CharacterSphereGroundSweep(
                         groundSweepPosition, // position
                         atRotation, // rotation
                         groundSweepDirection, // direction
@@ -2643,6 +2655,59 @@ namespace KinematicCharacterController
             return nbHits;
         }
 
+
+        private Vector3 GetSphereCenter(Vector3 position, Quaternion rotation, int direction)
+        {
+            Vector3 ret = position;
+            if (direction == 1)
+            {
+                ret = position + rotation * CharacterTransformToCapsuleBottomHemi;
+            }
+            else
+            {
+                ret = position + rotation * CharacterTransformToCapsuleCenter;
+            }
+            return ret;
+        }
+
+
+        private bool CharacterSphereGroundSweep(Vector3 position, Quaternion rotation, Vector3 direction,
+            float distance, out RaycastHit closestHit)
+        {
+            direction.Normalize();
+            closestHit = new RaycastHit();
+            var center = GetSphereCenter(position, rotation, CapsuleDirection);
+            // Capsule cast
+            int nbUnfilteredHits = Physics.SphereCastNonAlloc(center,
+                Capsule.radius,
+                direction, 
+                _internalCharacterHits,
+                distance + GroundProbingBackstepDistance, 
+                CollidableLayers,
+                QueryTriggerInteraction.Ignore);
+
+            // Hits filter
+            bool foundValidHit = false;
+            float closestDistance = Mathf.Infinity;
+            for (int i = 0; i < nbUnfilteredHits; i++)
+            {
+                // Find the closest valid hit
+                if (_internalCharacterHits[i].distance > 0f && CheckIfColliderValidForCollisions(_internalCharacterHits[i].collider))
+                {
+                    if (_internalCharacterHits[i].distance < closestDistance)
+                    {
+                        closestHit = _internalCharacterHits[i];
+                        closestHit.distance -= GroundProbingBackstepDistance;
+                        closestDistance = _internalCharacterHits[i].distance;
+
+                        foundValidHit = true;
+                    }
+                }
+            }
+
+            return foundValidHit;
+        }
+        
         /// <summary>
         /// 检查沿着胶囊体下的方向碰撞检查
         /// Casts the character volume in the character's downward direction to detect ground
