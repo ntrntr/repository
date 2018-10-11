@@ -185,7 +185,7 @@ namespace KinematicCharacterController.Examples
 
         public override void OnGroundHit(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, ref HitStabilityReport hitStabilityReport)
         {
-            DebugDraw.DrawArrow(hitPoint, hitNormal * 2.0f, Color.black);
+            //DebugDraw.DrawArrow(hitPoint, hitNormal * 2.0f, Color.black);
         }
 
         public override void OnMovementHit(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint,
@@ -197,7 +197,7 @@ namespace KinematicCharacterController.Examples
         public override void ProcessHitStabilityReport(Collider hitCollider, Vector3 hitNormal, Vector3 hitPoint, Vector3 atCharacterPosition,
             Quaternion atCharacterRotation, ref HitStabilityReport hitStabilityReport)
         {
-            DebugDraw.DrawArrow(hitPoint, hitNormal, Color.yellow);
+            //DebugDraw.DrawArrow(hitPoint, hitNormal, Color.yellow);
             if (hitStabilityReport.LedgeDetected)
             {
                 DebugDraw.DrawArrow(hitPoint, hitStabilityReport.LedgeGroundNormal, Color.green);

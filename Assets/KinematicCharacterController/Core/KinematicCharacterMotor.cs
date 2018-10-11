@@ -69,6 +69,7 @@ namespace KinematicCharacterController
     {
         public bool FoundAnyGround;
         public bool IsStableOnGround;
+        //是否组织投射移动
         public bool SnappingPrevented;
         public Vector3 GroundNormal;
         public Vector3 InnerGroundNormal;
@@ -86,7 +87,7 @@ namespace KinematicCharacterController
             InnerGroundNormal = transientGroundingReport.InnerGroundNormal;
             OuterGroundNormal = transientGroundingReport.OuterGroundNormal;
 
-            GroundCollider = null;
+            GroundCollider = transientGroundingReport.GroundCollider;
             GroundPoint = Vector3.zero;
         }
     }
@@ -884,6 +885,28 @@ namespace KinematicCharacterController
         }
 
         private static string _myLog3 = string.Empty;
+
+
+        private float GroundProbingDistance(CharacterTransientGroundingReport report)
+        {
+            // Choose the appropriate ground probing distance
+            float selectedGroundProbingDistance = MinimumGroundProbingDistance; 
+            if (!report.SnappingPrevented && (report.IsStableOnGround || LastMovementIterationFoundAnyGround))
+            {
+                if (StepHandling != StepHandlingMethod.None)
+                {
+                    selectedGroundProbingDistance = Mathf.Max(CapsuleRadius, MaxStepHeight);
+                }
+                else
+                {
+                    selectedGroundProbingDistance = CapsuleRadius;
+                }
+
+                selectedGroundProbingDistance += GroundDetectionExtraDistance;
+            }
+
+            return selectedGroundProbingDistance;
+        }
         
         /// <summary>
         /// Update phase 1 is meant to be called after physics movers have calculated their velocities, but
@@ -1010,21 +1033,8 @@ namespace KinematicCharacterController
                 else
                 {
                     // Choose the appropriate ground probing distance
-                    float selectedGroundProbingDistance = MinimumGroundProbingDistance; 
-                    if (!LastGroundingStatus.SnappingPrevented && (LastGroundingStatus.IsStableOnGround || LastMovementIterationFoundAnyGround))
-                    {
-                        if (StepHandling != StepHandlingMethod.None)
-                        {
-                            selectedGroundProbingDistance = Mathf.Max(CapsuleRadius, MaxStepHeight);
-                        }
-                        else
-                        {
-                            selectedGroundProbingDistance = CapsuleRadius;
-                        }
-
-                        selectedGroundProbingDistance += GroundDetectionExtraDistance;
-                    }
-
+                    float selectedGroundProbingDistance = GroundProbingDistance(LastGroundingStatus);
+                    
                     ProbeGround(ref _internalTransientPosition, TransientRotation, selectedGroundProbingDistance, ref GroundingStatus);
                 }
             }
@@ -1415,7 +1425,7 @@ namespace KinematicCharacterController
         {
             var groundNormal = GroundingStatus.GroundNormal;
 
-            if (CompareUtility.IsApproximatelyEqual(deltaRotation, Vector3.zero) && CompareUtility.IsApproximatelyEqual(groundNormal,LastGroundingStatus.GroundNormal) && LastGroundingStatus.GroundCollider == GroundingStatus.GroundCollider)
+            if (CompareUtility.IsApproximatelyEqual(deltaRotation, Vector3.zero) && CompareUtility.IsApproximatelyEqual(groundNormal,LastGroundingStatus.GroundNormal) && LastGroundingStatus.GroundCollider == GroundingStatus.GroundCollider && CompareUtility.IsApproximatelyEqual(GroundingStatus.GroundNormal, CharacterUp))
             {
                 LogWhenDifferent(string.Format("deltaRotation is zero, ground normal is not changed!!!,GroundingStatus:{0}, pre grounding:{1}",  GetColliderName(GroundingStatus.GroundCollider), GetColliderName(LastGroundingStatus.GroundCollider)),
                     ref _myLog1);
@@ -1424,10 +1434,37 @@ namespace KinematicCharacterController
 
             if (!GroundingStatus.IsStableOnGround)
             {
-                Logger.InfoFormat("ground status is not stable,{0}", GetColliderName(GroundingStatus.GroundCollider));
+                Logger.InfoFormat("is not stable on ground, GroundingStatus.GroundNormal:{0}, GroundingStatus.GroundPoint:{1}", GroundingStatus.GroundNormal, GroundingStatus.GroundPoint);
+                DebugDraw.DrawArrow(GroundingStatus.GroundPoint, GroundingStatus.GroundNormal.normalized * 10f, Color.magenta, 0);
                 groundNormal = CharacterUp;
             }
+
+            SolveRotateCharacter(deltaRotation, groundNormal);
+
+            CheckIfGroundIsChange();
+        }
+
+        private void CheckIfGroundIsChange()
+        {
+            var groundingReport = new CharacterTransientGroundingReport();
+            groundingReport.CopyFrom(GroundingStatus);
             
+            var tmpReport = new CharacterGroundingReport();
+            tmpReport.GroundNormal = CharacterUp;
+            
+            ProbeGround(ref _internalTransientPosition, TransientRotation, GroundProbingDistance(groundingReport), ref tmpReport);
+            if (!CompareUtility.IsApproximatelyEqual(tmpReport.GroundNormal, GroundingStatus.GroundNormal))
+            {
+                // we detected a normal changed, we set the nor half of characterUp and new Normal
+                var mergedNormal = Vector3.Slerp(tmpReport.GroundNormal, CharacterUp, 0.5f);
+                Logger.InfoFormat("solve normal to :{0}, due to new ground normal is different from origion", mergedNormal);
+                SolveRotateCharacter(Vector3.zero, mergedNormal);
+            }
+        }
+
+        private bool SolveRotateCharacter(Vector3 deltaRotation, Vector3 groundNormal)
+        {
+            bool ret = true;
             float rotateAngleRemain = Mathf.Abs(deltaRotation.y);
             bool isNeg = deltaRotation.y < 0;
             bool forceQuit = false;
@@ -1445,13 +1482,15 @@ namespace KinematicCharacterController
                              Mathf.Sin(Mathf.Deg2Rad * (90.0f - Vector3.Angle(expectedGroundNormal, _cachedWorldUp)));
             }
 
+            Quaternion calcTransientRotation = TransientRotation;
+
             Vector3 liftUpPosition = TransientPosition + expectedGroundNormal * liftUpDist;
 
             while (rotateAngleRemain > 0 && !forceQuit || isFirstTime)
             {
                 isFirstTime = false;
                 float stepRotateAngle = rotateAngleRemain > RotationStep ? RotationStep : rotateAngleRemain;
-                var targetRotate = Quaternion.AngleAxis(stepRotateAngle * (isNeg ? -1f:1f), Vector3.up) * TransientRotation;
+                var targetRotate = Quaternion.AngleAxis(stepRotateAngle * (isNeg ? -1f:1f), Vector3.up) * calcTransientRotation;
                 var forward = targetRotate * Vector3.forward;
                 
                 forward = GetDirectionTangentToSurface(forward, groundNormal);
@@ -1460,6 +1499,7 @@ namespace KinematicCharacterController
                 if (CharacterCollisionsOverlap(liftUpPosition, targetRotate, _internalProbedColliders) > 0)
                 {
                     forceQuit = true;
+                    ret = false;
                 }
                 else
                 {
@@ -1470,12 +1510,14 @@ namespace KinematicCharacterController
                         GetVectorString(groundNormal),
                         GetColliderName(GroundingStatus.GroundCollider),
                         GetColliderName(LastGroundingStatus.GroundCollider));
-                    InternalRotateCharacterRotation(ref _internalTransientRotation, targetRotate, liftUpPosition);
+                    calcTransientRotation = targetRotate;
+                    
                 }
                 
                 rotateAngleRemain -= stepRotateAngle;
             }
 
+            InternalRotateCharacterRotation(ref _internalTransientRotation, calcTransientRotation, liftUpPosition);
             TransientRotation = _internalTransientRotation;
             
             RaycastHit closestSweepHit;
@@ -1490,11 +1532,7 @@ namespace KinematicCharacterController
 
             TransientPosition = _internalTransientPosition;
 
-            if (!GroundingStatus.IsStableOnGround)
-            {
-                Logger.InfoFormat("is not stable on ground, GroundingStatus.GroundNormal:{0}, GroundingStatus.GroundPoint:{1}", GroundingStatus.GroundNormal, GroundingStatus.GroundPoint);
-                DebugDraw.DrawArrow(GroundingStatus.GroundPoint, GroundingStatus.GroundNormal.normalized * 10f, Color.magenta, 0);
-            }
+            return ret;
         }
 
         private string GetColliderName(Collider col)
@@ -1549,6 +1587,7 @@ namespace KinematicCharacterController
         
         /// <summary>
         /// 探测地面
+        /// 探测地面会修改坐标!!!,原因是会把坐标移动到地面上面
         /// Probes for valid ground and midifies the input transientPosition if ground snapping occurs
         /// </summary>
         public void ProbeGround(ref Vector3 probingPosition, Quaternion atRotation, float probingDistance, ref CharacterGroundingReport groundingReport)
@@ -1662,6 +1701,9 @@ namespace KinematicCharacterController
 
                 groundSweepsMade++;
             }
+            
+            DebugDraw.DebugWireSphere(GetSphereCenter(probingPosition, atRotation, CapsuleDirection), Color.blue, CapsuleRadius,0, false);
+            DebugDraw.DebugArrow(groundingReport.GroundPoint, groundingReport.GroundNormal, Color.blue, 0, false);
         }
 
         /// <summary>
@@ -2677,6 +2719,7 @@ namespace KinematicCharacterController
             direction.Normalize();
             closestHit = new RaycastHit();
             var center = GetSphereCenter(position, rotation, CapsuleDirection);
+            //DebugDraw.DrawMarker(center, 1.0f, Color.red, 0f, false);
             // Capsule cast
             int nbUnfilteredHits = Physics.SphereCastNonAlloc(center,
                 Capsule.radius,
