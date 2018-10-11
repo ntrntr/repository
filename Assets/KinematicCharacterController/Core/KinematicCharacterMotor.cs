@@ -301,7 +301,7 @@ namespace KinematicCharacterController
         public bool SafeMovement = true;
         
         [Tooltip("(We suggest leaving this off. This has a pretty heavy performance cost, and is not necessary unless you start seeing situations where a fast-moving character moves through colliders) Makes sure the character cannot perform a move at all if it would be overlapping with any collidable objects at its destination. Useful for preventing \"tunneling\". ")]
-        public bool SafeRotate = false;
+        public bool SafeRotate = true;
 
         /// <summary>
         /// Contains the current grounding information
@@ -865,6 +865,7 @@ namespace KinematicCharacterController
             mockReport.IsStable = IsStableOnNormal(resolutionDirection);
             resolutionDirection = GetObstructionNormal(resolutionDirection, mockReport);
             float tiltAngle = 90f - Vector3.Angle(originalResolutionDirection, resolutionDirection);
+            //如果角度不一样，需要跟加长的高度
             resolutionDistance = resolutionDistance / Mathf.Sin(tiltAngle * Mathf.Deg2Rad);
             DebugDraw.DrawArrow(TransientPosition, resolutionDirection.normalized * 2.2f,Color.cyan, 5.0f);
 
@@ -882,6 +883,8 @@ namespace KinematicCharacterController
             }
         }
 
+        private static string _myLog3 = string.Empty;
+        
         /// <summary>
         /// Update phase 1 is meant to be called after physics movers have calculated their velocities, but
         /// before they have simulated their goal positions/rotations. It is responsible for:
@@ -947,7 +950,7 @@ namespace KinematicCharacterController
             LastGroundingStatus.CopyFrom(GroundingStatus);
             GroundingStatus = new CharacterGroundingReport();
             GroundingStatus.GroundNormal = CharacterUp;
-
+            
             if (_solveMovementCollisions)
             {
                 #region Resolve initial overlaps
@@ -1026,6 +1029,12 @@ namespace KinematicCharacterController
                 }
             }
 
+            if (GetColliderName(GroundingStatus.GroundCollider) != GetColliderName(LastGroundingStatus.GroundCollider))
+            {
+                int c = 0;
+            }
+            LogWhenDifferent(string.Format("after:{0}, before:{1}", GetColliderName(GroundingStatus.GroundCollider), GetColliderName(LastGroundingStatus.GroundCollider)), ref _myLog3);
+            
             LastMovementIterationFoundAnyGround = false;
             MustUnground = false;
             #endregion
@@ -1385,7 +1394,19 @@ namespace KinematicCharacterController
 
 
         private float RotationStep = 1.0f;
-        private float RotationLeftUpDistance = 0.3f;
+        private float RotationLeftUpDistance = 0.5f;
+
+        private void LogWhenDifferent(string newLog, ref string saveLog)
+        {
+            if (saveLog != newLog)
+            {
+                saveLog = newLog;
+                Logger.Info(saveLog);
+            }
+        }
+
+        private static string _myLog1 = string.Empty;
+        private static string _myLog2 = string.Empty;
         /// <summary>
         /// 处理旋转的情况
         /// </summary>
@@ -1394,11 +1415,18 @@ namespace KinematicCharacterController
         {
             var groundNormal = GroundingStatus.GroundNormal;
 
-//            if (deltaRotation == Vector3.zero && groundNormal == LastGroundingStatus.GroundNormal && GroundingStatus.GroundCollider == LastGroundingStatus.GroundCollider)
-//            {
-//                Logger.InfoFormat("deltaRotation is zero, ground normal is not changed!!!,{0}", GroundingStatus.GroundCollider.name);
-//                return;
-//            }
+            if (CompareUtility.IsApproximatelyEqual(deltaRotation, Vector3.zero) && CompareUtility.IsApproximatelyEqual(groundNormal,LastGroundingStatus.GroundNormal) && LastGroundingStatus.GroundCollider == GroundingStatus.GroundCollider)
+            {
+                LogWhenDifferent(string.Format("deltaRotation is zero, ground normal is not changed!!!,GroundingStatus:{0}, pre grounding:{1}",  GetColliderName(GroundingStatus.GroundCollider), GetColliderName(LastGroundingStatus.GroundCollider)),
+                    ref _myLog1);
+                return;
+            }
+
+            if (!GroundingStatus.IsStableOnGround)
+            {
+                Logger.InfoFormat("ground status is not stable,{0}", GetColliderName(GroundingStatus.GroundCollider));
+                groundNormal = CharacterUp;
+            }
             
             float rotateAngleRemain = Mathf.Abs(deltaRotation.y);
             bool isNeg = deltaRotation.y < 0;
@@ -1412,7 +1440,7 @@ namespace KinematicCharacterController
             {
                 isFirstTime = false;
                 float stepRotateAngle = rotateAngleRemain > RotationStep ? RotationStep : rotateAngleRemain;
-                var targetRotate = Quaternion.AngleAxis(stepRotateAngle * (isNeg ? 1f:-1f), Vector3.up) * TransientRotation;
+                var targetRotate = Quaternion.AngleAxis(stepRotateAngle * (isNeg ? -1f:1f), Vector3.up) * TransientRotation;
                 var forward = targetRotate * Vector3.forward;
                 
                 forward = GetDirectionTangentToSurface(forward, groundNormal);
@@ -1424,7 +1452,13 @@ namespace KinematicCharacterController
                 }
                 else
                 {
-                    //Logger.InfoFormat("change rotate from:[{0},{1},{2}]->To:[{3},{4},{5}], normal:{6}, GroundCollider:{7}, lastCollider:{8}", TransientRotation.eulerAngles.x, TransientRotation.eulerAngles.y, TransientRotation.eulerAngles.z, targetRotate.eulerAngles.x, targetRotate.eulerAngles.y, targetRotate.eulerAngles.z, groundNormal, GroundingStatus.GroundCollider.name, LastGroundingStatus.GroundCollider.name);
+                    Logger.InfoFormat(
+                        "change rotate from:{0}->To:{1}, normal:{2}, GroundCollider:{3}, lastCollider:{4}",
+                        GetVectorString(TransientRotation.eulerAngles),
+                        GetVectorString(targetRotate.eulerAngles),
+                        GetVectorString(groundNormal),
+                        GetColliderName(GroundingStatus.GroundCollider),
+                        GetColliderName(LastGroundingStatus.GroundCollider));
                     InternalRotateCharacterRotation(ref _internalTransientRotation, targetRotate, liftUpPosition);
                 }
                 
@@ -1438,9 +1472,9 @@ namespace KinematicCharacterController
             if (CharacterCollisionsSweep(liftUpPosition, TransientRotation, -expectedGroundNormal, liftUpDist, out closestSweepHit,
                     _internalCharacterHits) > 0)
             {
-                Logger.InfoFormat("dist:{0}, before:{1}, after:{2}",- expectedGroundNormal * closestSweepHit.distance,GetVectorString(_internalTransientPosition) ,GetVectorString(_internalTransientPosition), liftUpPosition - expectedGroundNormal * closestSweepHit.distance  + (expectedGroundNormal * CollisionOffset));
+                Logger.InfoFormat("dist:{0}, before:{1}, after:{2}", -expectedGroundNormal * closestSweepHit.distance, GetVectorString(_internalTransientPosition), GetVectorString(_internalTransientPosition), liftUpPosition - expectedGroundNormal * closestSweepHit.distance + (expectedGroundNormal * CollisionOffset));
                 InternalMoveCharacterPosition(ref _internalTransientPosition,
-                    liftUpPosition - expectedGroundNormal * closestSweepHit.distance  + (expectedGroundNormal * 0), TransientRotation);
+                    liftUpPosition - expectedGroundNormal * closestSweepHit.distance + (expectedGroundNormal * CollisionOffset), TransientRotation);
             }
 
             TransientPosition = _internalTransientPosition;
@@ -1450,6 +1484,11 @@ namespace KinematicCharacterController
                 Logger.InfoFormat("is not stable on ground, GroundingStatus.GroundNormal:{0}, GroundingStatus.GroundPoint:{1}", GroundingStatus.GroundNormal, GroundingStatus.GroundPoint);
                 DebugDraw.DrawArrow(GroundingStatus.GroundPoint, GroundingStatus.GroundNormal.normalized * 10f, Color.magenta, 0);
             }
+        }
+
+        private string GetColliderName(Collider col)
+        {
+            return col == null ? "null" : col.name;
         }
 
         private string GetVectorString(Vector3 vec)
@@ -1471,14 +1510,27 @@ namespace KinematicCharacterController
 
         private Vector3 GetGroundSweepDirection(Quaternion rotation, int direction)
         {
-            Vector3 ret = -_cachedWorldUp;
+            return CharacterDirection(rotation, direction, -_cachedWorldUp);
+        }
+
+        private Vector3 GetCharacterUp(Quaternion rotation, int direction)
+        {
+            return CharacterDirection(rotation, direction, _cachedWorldUp);
+        }
+
+        /// <summary>
+        /// 
+        /// </summary>
+        /// <param name="rotation"></param>
+        /// <param name="direction">1->x, 2->y, 3->z</param>
+        /// <param name="vector"></param>
+        /// <returns></returns>
+        private Vector3 CharacterDirection(Quaternion rotation, int direction, Vector3 vector)
+        {
+            Vector3 ret = vector;
             if (direction == 1)
             {
                 ret = rotation * ret;
-            }
-            else
-            {
-                
             }
 
             return ret;
@@ -2055,8 +2107,8 @@ namespace KinematicCharacterController
 
             bool isStableOnNormal = false;
 
-            //Todo 
-            Vector3 atCharacterUp = GetGroundSweepDirection(atCharacterRotation, CapsuleDirection);
+            //Todo 默认的方向
+            Vector3 atCharacterUp = GetCharacterUp(atCharacterRotation, CapsuleDirection);
 
             Vector3 innerHitDirection = Vector3.ProjectOnPlane(hitNormal, atCharacterUp).normalized;
 
@@ -2146,7 +2198,7 @@ namespace KinematicCharacterController
             Collider tmpCollider;
             RaycastHit outerStepHit;
             
-            Vector3 characterUp = characterRotation * Vector3.up;
+            Vector3 characterUp = GetCharacterUp(characterRotation, CapsuleDirection);
             
             Vector3 stepCheckStartPos = characterPosition;
             
@@ -2222,7 +2274,7 @@ namespace KinematicCharacterController
         {
             hitCollider = null;
             
-            Vector3 characterUp = characterRotation * Vector3.up;
+            Vector3 characterUp = GetCharacterUp(characterRotation, CapsuleDirection);
 
             // Find the farthest valid hit for stepping
             bool foundValidStepPosition = false;
@@ -2242,7 +2294,7 @@ namespace KinematicCharacterController
                     }
                 }
 
-                // 方向不同，最低的点不同
+                // 方向不同，最低的点不同,没关系，计算step的高度，按中心算好了
                 Vector3 characterBottom = GetBottomPoint(characterPosition, characterRotation, CapsuleDirection);
                 
                 float hitHeight = Vector3.Project(farthestHit.point - characterBottom, characterUp).magnitude;
@@ -2255,7 +2307,7 @@ namespace KinematicCharacterController
                     // 没有overlap
                     if (atStepOverlaps <= 0)
                     {
-                        // Check for outer hit slope normal stability at the step position
+                        // Check for outer hit slope normal stability at the step position，找落点outDirection的stable情况
                         RaycastHit outerSlopeHit;
                         if (CharacterCollisionsRaycast(
                                 farthestHit.point + (characterUp * SecondaryProbesVertical) + (-innerHitDirection * SecondaryProbesHorizontal),
