@@ -1,11 +1,20 @@
-﻿using System;
+﻿#define USE_SPHERE_CAST
+
+#undef USE_SPHERE_CAST
+
+using System;
 using System.Diagnostics;
 using Core.Utils;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
 
+
+
+
 namespace KinematicCharacterController
 {
+
+    
     public enum RigidbodyInteractionType
     {
         None,
@@ -907,6 +916,24 @@ namespace KinematicCharacterController
 
             return selectedGroundProbingDistance;
         }
+
+
+        private bool CheckIfNoInput(float deltaTime)
+        {
+            return false;
+            bool ret = false;
+            Vector3 vec = Vector3.zero;
+            Quaternion rot = Quaternion.identity;
+            Vector3 quatRot = Vector3.zero;
+            this.CharacterController.UpdateRotation(ref rot, deltaTime, out quatRot);
+            this.CharacterController.UpdateVelocity(ref vec, deltaTime);
+            if (quatRot == Vector3.zero && vec == Vector3.zero)
+            {
+                ret = true;
+            }
+
+            return ret;
+        }
         
         /// <summary>
         /// Update phase 1 is meant to be called after physics movers have calculated their velocities, but
@@ -919,6 +946,12 @@ namespace KinematicCharacterController
         /// </summary>
         public void UpdatePhase1(float deltaTime)
         {
+
+            if (CheckIfNoInput(deltaTime))
+            {
+                return;
+            }
+            
             // NaN propagation safety stop
             if (float.IsNaN(_baseVelocity.x) || float.IsNaN(_baseVelocity.y) || float.IsNaN(_baseVelocity.z))
             {
@@ -1154,7 +1187,10 @@ namespace KinematicCharacterController
         /// </summary>
         public void UpdatePhase2(float deltaTime)
         {
-            
+            if (CheckIfNoInput(deltaTime))
+            {
+                return;
+            }
             Vector3 deltaRotation = Vector3.zero;
             
             // Handle rotation
@@ -1327,6 +1363,12 @@ namespace KinematicCharacterController
             }
             #endregion
 
+            // Choose the appropriate ground probing distance
+            float selectedGroundProbingDistance = GroundProbingDistance(LastGroundingStatus);
+                    
+            ProbeGround(ref _internalTransientPosition, TransientRotation, selectedGroundProbingDistance, ref GroundingStatus);
+            
+            SolveRotation(Vector3.zero);
             // Handle planar constraint
             if(HasPlanarConstraint)
             {
@@ -1441,7 +1483,7 @@ namespace KinematicCharacterController
 
             SolveRotateCharacter(deltaRotation, groundNormal);
 
-            CheckIfGroundIsChange();
+            //CheckIfGroundIsChange();
         }
 
         private void CheckIfGroundIsChange()
@@ -1453,13 +1495,24 @@ namespace KinematicCharacterController
             tmpReport.GroundNormal = CharacterUp;
             
             ProbeGround(ref _internalTransientPosition, TransientRotation, GroundProbingDistance(groundingReport), ref tmpReport);
-            if (!CompareUtility.IsApproximatelyEqual(tmpReport.GroundNormal, GroundingStatus.GroundNormal))
+            if (!CompareUtility.IsApproximatelyEqual(tmpReport.GroundNormal, GroundingStatus.GroundNormal) && !CompareUtility.IsApproximatelyEqual(tmpReport.GroundPoint, GroundingStatus.GroundPoint))
             {
                 // we detected a normal changed, we set the nor half of characterUp and new Normal
                 var mergedNormal = Vector3.Slerp(tmpReport.GroundNormal, CharacterUp, 0.5f);
-                Logger.InfoFormat("solve normal to :{0}, due to new ground normal is different from origion", mergedNormal);
-                SolveRotateCharacter(Vector3.zero, mergedNormal);
+                //var mergedNormal = GetNormalByTwoHitPoint(tmpReport.GroundPoint, GroundingStatus.GroundPoint);
+                if (mergedNormal != Vector3.zero)
+                {
+                    Logger.InfoFormat("solve normal to :{0}, due to new ground normal is different from origion", mergedNormal);
+                    SolveRotateCharacter(Vector3.zero, mergedNormal);
+                }
             }
+        }
+
+        private Vector3 GetNormalByTwoHitPoint(Vector3 hitPoint1, Vector3 hitPoint2)
+        {
+            var vector = hitPoint2 - hitPoint1;
+            var right = Vector3.Cross(_cachedWorldUp, vector);
+            return Vector3.Cross(vector, right);
         }
 
         private bool SolveRotateCharacter(Vector3 deltaRotation, Vector3 groundNormal)
@@ -1584,7 +1637,7 @@ namespace KinematicCharacterController
 
             return ret;
         }
-        
+
         /// <summary>
         /// 探测地面
         /// 探测地面会修改坐标!!!,原因是会把坐标移动到地面上面
@@ -1609,12 +1662,22 @@ namespace KinematicCharacterController
             {
                 // Sweep for ground detection
                 // Todo change to sphere ground detection
+#if USE_SPHERE_CAST
                 if (CharacterSphereGroundSweep(
+                        GetSphereCenter(groundSweepPosition, rotation, CapsuleDirection),
                         groundSweepPosition, // position
                         atRotation, // rotation
                         groundSweepDirection, // direction
                         groundProbeDistanceRemaining, // distance
                         out groundSweepHit)) // hit
+#else
+                if (CharacterGroundSweep(
+                        groundSweepPosition, // position
+                        atRotation, // rotation
+                        groundSweepDirection, // direction
+                        groundProbeDistanceRemaining, // distance
+                        out groundSweepHit)) // hit
+#endif   
                 {
                     Vector3 targetPosition = groundSweepPosition + (groundSweepDirection * groundSweepHit.distance);
                     HitStabilityReport groundHitStabilityReport = new HitStabilityReport();
@@ -1701,9 +1764,12 @@ namespace KinematicCharacterController
 
                 groundSweepsMade++;
             }
-            
-            DebugDraw.DebugWireSphere(GetSphereCenter(probingPosition, atRotation, CapsuleDirection), Color.blue, CapsuleRadius,0, false);
-            DebugDraw.DebugArrow(groundingReport.GroundPoint, groundingReport.GroundNormal, Color.blue, 0, false);
+
+            if (groundingReport.GroundNormal != Vector3.zero)
+            {
+                //DebugDraw.DebugArrow(groundingReport.GroundPoint, groundingReport.GroundNormal, Color.blue, 0, false);
+
+            }
         }
 
         /// <summary>
@@ -2718,10 +2784,8 @@ namespace KinematicCharacterController
         {
             direction.Normalize();
             closestHit = new RaycastHit();
-            var center = GetSphereCenter(position, rotation, CapsuleDirection);
-            //DebugDraw.DrawMarker(center, 1.0f, Color.red, 0f, false);
             // Capsule cast
-            int nbUnfilteredHits = Physics.SphereCastNonAlloc(center,
+            int nbUnfilteredHits = Physics.SphereCastNonAlloc(position,
                 Capsule.radius,
                 direction, 
                 _internalCharacterHits,
@@ -2841,5 +2905,244 @@ namespace KinematicCharacterController
 
             return nbHits;
         }
+        
+        
+        public void SphereProbeGround(ref Vector3 probingPosition, Quaternion atRotation, float probingDistance,
+            ref CharacterGroundingReport groundingReport)
+        {
+            if (probingDistance < MinimumGroundProbingDistance)
+            {
+                probingDistance = MinimumGroundProbingDistance;
+            }
+
+            int groundSweepsMade = 0;
+            RaycastHit groundSweepHit = new RaycastHit();
+            bool groundSweepingIsOver = false;
+            Vector3 groundSweepPosition = probingPosition;
+            //需要探测的方向
+            //Todo 
+            Vector3 groundSweepDirection = GetGroundSweepDirection(atRotation, CapsuleDirection);
+            float groundProbeDistanceRemaining = probingDistance;
+            while (groundProbeDistanceRemaining > 0 && (groundSweepsMade <= MaxGroundingSweepIterations) && !groundSweepingIsOver)
+            {
+                // Sweep for ground detection
+                // Todo change to sphere ground detection
+                if (CharacterSphereGroundSweep(
+                        groundSweepPosition, // position
+                        atRotation, // rotation
+                        groundSweepDirection, // direction
+                        groundProbeDistanceRemaining, // distance
+                        out groundSweepHit)) // hit
+                {
+                    Vector3 targetPosition = groundSweepPosition + (groundSweepDirection * groundSweepHit.distance);
+                    HitStabilityReport groundHitStabilityReport = new HitStabilityReport();
+                    EvaluateHitStability(groundSweepHit.collider, groundSweepHit.normal, groundSweepHit.point, targetPosition, TransientRotation, ref groundHitStabilityReport);
+
+                    // Handle ledge stability
+                    if (groundHitStabilityReport.LedgeDetected)
+                    {
+                        if (groundHitStabilityReport.IsOnEmptySideOfLedge && groundHitStabilityReport.DistanceFromLedge > MaxStableDistanceFromLedge)
+                        {
+                            groundHitStabilityReport.IsStable = false;
+                            Logger.InfoFormat("IsOnEmptySideOfLedge is ture, DistanceFromLedge > MaxStableDistanceFromLedge:{0}, set IsStable to false", MaxStableDistanceFromLedge);
+                        }
+                    }
+
+                    groundingReport.FoundAnyGround = true;
+                    groundingReport.GroundNormal = groundSweepHit.normal;
+                    groundingReport.InnerGroundNormal = groundHitStabilityReport.InnerNormal;
+                    groundingReport.OuterGroundNormal = groundHitStabilityReport.OuterNormal;
+                    groundingReport.GroundCollider = groundSweepHit.collider;
+                    groundingReport.GroundPoint = groundSweepHit.point;
+                    groundingReport.SnappingPrevented = false;
+
+                    // Found stable ground
+                    if (groundHitStabilityReport.IsStable)
+                    {
+                        // Find all scenarios where ground snapping should be canceled
+                        if (LedgeHandling)
+                        {
+                            // "Launching" off of slopes of a certain denivelation angle
+                            if (LastGroundingStatus.FoundAnyGround && groundHitStabilityReport.InnerNormal.sqrMagnitude != 0f && groundHitStabilityReport.OuterNormal.sqrMagnitude != 0f)
+                            {
+                                float denivelationAngle = Vector3.Angle(groundHitStabilityReport.InnerNormal, groundHitStabilityReport.OuterNormal);
+                                if (denivelationAngle > MaxStableDenivelationAngle)
+                                {
+                                    groundingReport.SnappingPrevented = true;
+                                }
+                                else
+                                {
+                                    denivelationAngle = Vector3.Angle(LastGroundingStatus.InnerGroundNormal, groundHitStabilityReport.OuterNormal);
+                                    if (denivelationAngle > MaxStableDenivelationAngle)
+                                    {
+                                        groundingReport.SnappingPrevented = true;
+                                    }
+                                }
+                            }
+
+                            // Ledge stability
+                            if (PreventSnappingOnLedges && groundHitStabilityReport.LedgeDetected)
+                            {
+                                groundingReport.SnappingPrevented = true;
+                            }
+                        }
+
+                        groundingReport.IsStableOnGround = true;
+
+                        // Ground snapping
+                        if (!groundingReport.SnappingPrevented)
+                        {
+                            targetPosition += (-groundSweepDirection * CollisionOffset);
+                            probingPosition = targetPosition;
+                        }
+
+                        this.CharacterController.OnGroundHit(groundSweepHit.collider, groundSweepHit.normal, groundSweepHit.point, ref groundHitStabilityReport);
+                        groundSweepingIsOver = true;
+                    }
+                    else
+                    {
+                        // Calculate movement from this iteration and advance position
+                        Vector3 sweepMovement = (groundSweepDirection * groundSweepHit.distance) + ((atRotation * Vector3.up) * Mathf.Clamp(CollisionOffset, 0f, groundSweepHit.distance));
+                        groundSweepPosition = groundSweepPosition + sweepMovement;
+
+                        // Set remaining distance
+                        groundProbeDistanceRemaining = Mathf.Min(GroundProbeReboundDistance, Mathf.Clamp(groundProbeDistanceRemaining - sweepMovement.magnitude, 0f, Mathf.Infinity));
+
+                        // Reorient direction
+                        groundSweepDirection = Vector3.ProjectOnPlane(groundSweepDirection, groundSweepHit.normal).normalized;
+                    }
+                }
+                else
+                {
+                    groundSweepingIsOver = true;
+                }
+
+                groundSweepsMade++;
+            }
+        }
+
+        public void MyProbeGround(ref Vector3 probingPosition, Quaternion atRotation, float probingDistance,
+            ref CharacterGroundingReport groundingReport)
+        {
+            if (probingDistance < MinimumGroundProbingDistance)
+            {
+                probingDistance = MinimumGroundProbingDistance;
+            }
+
+            int groundSweepsMade = 0;
+            RaycastHit groundSweepHit = new RaycastHit();
+            bool groundSweepingIsOver = false;
+            Vector3 groundSweepPosition = probingPosition;
+            //需要探测的方向
+            //Todo 
+            Vector3 groundSweepDirection = GetGroundSweepDirection(atRotation, CapsuleDirection);
+            float groundProbeDistanceRemaining = probingDistance;
+            while (groundProbeDistanceRemaining > 0 && (groundSweepsMade <= MaxGroundingSweepIterations) && !groundSweepingIsOver)
+            {
+                // Sweep for ground detection
+                // Todo change to sphere ground detection
+#if USE_SPHERE_CAST
+                if (CharacterSphereGroundSweep(
+                        groundSweepPosition, // position
+                        atRotation, // rotation
+                        groundSweepDirection, // direction
+                        groundProbeDistanceRemaining, // distance
+                        out groundSweepHit)) // hit
+#else
+                if (CharacterGroundSweep(
+                        groundSweepPosition, // position
+                        atRotation, // rotation
+                        groundSweepDirection, // direction
+                        groundProbeDistanceRemaining, // distance
+                        out groundSweepHit)) // hit
+#endif   
+                {
+                    Vector3 targetPosition = groundSweepPosition + (groundSweepDirection * groundSweepHit.distance);
+                    HitStabilityReport groundHitStabilityReport = new HitStabilityReport();
+                    EvaluateHitStability(groundSweepHit.collider, groundSweepHit.normal, groundSweepHit.point, targetPosition, TransientRotation, ref groundHitStabilityReport);
+
+                    // Handle ledge stability
+                    if (groundHitStabilityReport.LedgeDetected)
+                    {
+                        if (groundHitStabilityReport.IsOnEmptySideOfLedge && groundHitStabilityReport.DistanceFromLedge > MaxStableDistanceFromLedge)
+                        {
+                            groundHitStabilityReport.IsStable = false;
+                            Logger.InfoFormat("IsOnEmptySideOfLedge is ture, DistanceFromLedge > MaxStableDistanceFromLedge:{0}, set IsStable to false", MaxStableDistanceFromLedge);
+                        }
+                    }
+
+                    groundingReport.FoundAnyGround = true;
+                    groundingReport.GroundNormal = groundSweepHit.normal;
+                    groundingReport.InnerGroundNormal = groundHitStabilityReport.InnerNormal;
+                    groundingReport.OuterGroundNormal = groundHitStabilityReport.OuterNormal;
+                    groundingReport.GroundCollider = groundSweepHit.collider;
+                    groundingReport.GroundPoint = groundSweepHit.point;
+                    groundingReport.SnappingPrevented = false;
+
+                    // Found stable ground
+                    if (groundHitStabilityReport.IsStable)
+                    {
+                        // Find all scenarios where ground snapping should be canceled
+                        if (LedgeHandling)
+                        {
+                            // "Launching" off of slopes of a certain denivelation angle
+                            if (LastGroundingStatus.FoundAnyGround && groundHitStabilityReport.InnerNormal.sqrMagnitude != 0f && groundHitStabilityReport.OuterNormal.sqrMagnitude != 0f)
+                            {
+                                float denivelationAngle = Vector3.Angle(groundHitStabilityReport.InnerNormal, groundHitStabilityReport.OuterNormal);
+                                if (denivelationAngle > MaxStableDenivelationAngle)
+                                {
+                                    groundingReport.SnappingPrevented = true;
+                                }
+                                else
+                                {
+                                    denivelationAngle = Vector3.Angle(LastGroundingStatus.InnerGroundNormal, groundHitStabilityReport.OuterNormal);
+                                    if (denivelationAngle > MaxStableDenivelationAngle)
+                                    {
+                                        groundingReport.SnappingPrevented = true;
+                                    }
+                                }
+                            }
+
+                            // Ledge stability
+                            if (PreventSnappingOnLedges && groundHitStabilityReport.LedgeDetected)
+                            {
+                                groundingReport.SnappingPrevented = true;
+                            }
+                        }
+
+                        groundingReport.IsStableOnGround = true;
+
+                        // Ground snapping
+                        if (!groundingReport.SnappingPrevented)
+                        {
+                            targetPosition += (-groundSweepDirection * CollisionOffset);
+                            InternalMoveCharacterPosition(ref probingPosition, targetPosition, atRotation);
+                        }
+
+                        this.CharacterController.OnGroundHit(groundSweepHit.collider, groundSweepHit.normal, groundSweepHit.point, ref groundHitStabilityReport);
+                        groundSweepingIsOver = true;
+                    }
+                    else
+                    {
+                        // Calculate movement from this iteration and advance position
+                        Vector3 sweepMovement = (groundSweepDirection * groundSweepHit.distance) + ((atRotation * Vector3.up) * Mathf.Clamp(CollisionOffset, 0f, groundSweepHit.distance));
+                        groundSweepPosition = groundSweepPosition + sweepMovement;
+
+                        // Set remaining distance
+                        groundProbeDistanceRemaining = Mathf.Min(GroundProbeReboundDistance, Mathf.Clamp(groundProbeDistanceRemaining - sweepMovement.magnitude, 0f, Mathf.Infinity));
+
+                        // Reorient direction
+                        groundSweepDirection = Vector3.ProjectOnPlane(groundSweepDirection, groundSweepHit.normal).normalized;
+                    }
+                }
+                else
+                {
+                    groundSweepingIsOver = true;
+                }
+
+                groundSweepsMade++;
+            }
+        }
+        
     }
 }
