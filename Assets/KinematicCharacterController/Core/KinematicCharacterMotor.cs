@@ -1,5 +1,4 @@
 ﻿#define USE_SPHERE_CAST
-
 #undef USE_SPHERE_CAST
 
 using System;
@@ -7,9 +6,6 @@ using System.Diagnostics;
 using Core.Utils;
 using UnityEngine;
 using Debug = UnityEngine.Debug;
-
-
-
 
 namespace KinematicCharacterController
 {
@@ -1212,7 +1208,7 @@ namespace KinematicCharacterController
             }
 
             // solve rotation
-            SolveRotation(deltaRotation);
+            SolveRotation(deltaRotation, deltaTime);
             
             if (_solveMovementCollisions && InteractiveRigidbodyHandling)
             {
@@ -1363,12 +1359,8 @@ namespace KinematicCharacterController
             }
             #endregion
 
-            // Choose the appropriate ground probing distance
-            float selectedGroundProbingDistance = GroundProbingDistance(LastGroundingStatus);
-                    
-            ProbeGround(ref _internalTransientPosition, TransientRotation, selectedGroundProbingDistance, ref GroundingStatus);
+            FinalRotateStable(deltaTime);
             
-            SolveRotation(Vector3.zero);
             // Handle planar constraint
             if(HasPlanarConstraint)
             {
@@ -1378,6 +1370,10 @@ namespace KinematicCharacterController
             this.CharacterController.AfterCharacterUpdate(deltaTime);
         }
 
+        /// <summary>
+        /// 没有使用
+        /// </summary>
+        /// <returns></returns>
         private bool SolvePenetration()
         {
             bool ret = false;
@@ -1445,7 +1441,7 @@ namespace KinematicCharacterController
         }
 
 
-        private float RotationStep = 1.0f;
+        private float RotationStep = 2.0f;
         private float RotationLeftUpDistance = 0.5f;
 
         private void LogWhenDifferent(string newLog, ref string saveLog)
@@ -1463,7 +1459,7 @@ namespace KinematicCharacterController
         /// 处理旋转的情况
         /// </summary>
         /// <param name="deltaRotation"></param>
-        private void SolveRotation(Vector3 deltaRotation)
+        private void SolveRotation(Vector3 deltaRotation, float deltaTime)
         {
             var groundNormal = GroundingStatus.GroundNormal;
 
@@ -1481,31 +1477,43 @@ namespace KinematicCharacterController
                 groundNormal = CharacterUp;
             }
 
+            var angle = Vector3.Angle(CharacterUp, groundNormal);
+            groundNormal = Vector3.Slerp(CharacterUp, groundNormal, CompareUtility.IsApproximatelyEqual(angle, 0.0f) 
+            ? 1 : Mathf.Clamp01(RotateSpeed * deltaTime / angle));
             SolveRotateCharacter(deltaRotation, groundNormal);
-
-            //CheckIfGroundIsChange();
         }
 
-        private void CheckIfGroundIsChange()
+        private static readonly float RotateSpeed = 90f;
+
+        private void FinalRotateStable(float deltaTime)
         {
-            var groundingReport = new CharacterTransientGroundingReport();
-            groundingReport.CopyFrom(GroundingStatus);
+            // Choose the appropriate ground probing distance
+            LastGroundingStatus.CopyFrom(GroundingStatus);
+            float selectedGroundProbingDistance = GroundProbingDistance(LastGroundingStatus);
+            GroundingStatus = new CharacterGroundingReport();
+            GroundingStatus.GroundNormal = CharacterUp;
+            ProbeGround(ref _internalTransientPosition, TransientRotation, selectedGroundProbingDistance, ref GroundingStatus);
             
-            var tmpReport = new CharacterGroundingReport();
-            tmpReport.GroundNormal = CharacterUp;
+            SolveRotation(Vector3.zero, deltaTime);
             
-            ProbeGround(ref _internalTransientPosition, TransientRotation, GroundProbingDistance(groundingReport), ref tmpReport);
-            if (!CompareUtility.IsApproximatelyEqual(tmpReport.GroundNormal, GroundingStatus.GroundNormal) && !CompareUtility.IsApproximatelyEqual(tmpReport.GroundPoint, GroundingStatus.GroundPoint))
-            {
-                // we detected a normal changed, we set the nor half of characterUp and new Normal
-                var mergedNormal = Vector3.Slerp(tmpReport.GroundNormal, CharacterUp, 0.5f);
-                //var mergedNormal = GetNormalByTwoHitPoint(tmpReport.GroundPoint, GroundingStatus.GroundPoint);
-                if (mergedNormal != Vector3.zero)
-                {
-                    Logger.InfoFormat("solve normal to :{0}, due to new ground normal is different from origion", mergedNormal);
-                    SolveRotateCharacter(Vector3.zero, mergedNormal);
-                }
-            }
+//            var groundingReport = new CharacterTransientGroundingReport();
+//            groundingReport.CopyFrom(GroundingStatus);
+//            
+//            var tmpReport = new CharacterGroundingReport();
+//            tmpReport.GroundNormal = CharacterUp;
+//            
+//            ProbeGround(ref _internalTransientPosition, TransientRotation, GroundProbingDistance(groundingReport), ref tmpReport);
+//            if (!CompareUtility.IsApproximatelyEqual(tmpReport.GroundNormal, GroundingStatus.GroundNormal) && !CompareUtility.IsApproximatelyEqual(tmpReport.GroundPoint, GroundingStatus.GroundPoint))
+//            {
+//                // we detected a normal changed, we set the nor half of characterUp and new Normal
+//                var mergedNormal = Vector3.Slerp(tmpReport.GroundNormal, CharacterUp, 0.5f);
+//                //var mergedNormal = GetNormalByTwoHitPoint(tmpReport.GroundPoint, GroundingStatus.GroundPoint);
+//                if (mergedNormal != Vector3.zero)
+//                {
+//                    Logger.InfoFormat("solve normal to :{0}, due to new ground normal is different from origion", mergedNormal);
+//                    SolveRotateCharacter(Vector3.zero, mergedNormal);
+//                }
+//            }
         }
 
         private Vector3 GetNormalByTwoHitPoint(Vector3 hitPoint1, Vector3 hitPoint2)
@@ -1556,13 +1564,13 @@ namespace KinematicCharacterController
                 }
                 else
                 {
-                    Logger.InfoFormat(
-                        "change rotate from:{0}->To:{1}, normal:{2}, GroundCollider:{3}, lastCollider:{4}",
-                        GetVectorString(TransientRotation.eulerAngles),
-                        GetVectorString(targetRotate.eulerAngles),
-                        GetVectorString(groundNormal),
-                        GetColliderName(GroundingStatus.GroundCollider),
-                        GetColliderName(LastGroundingStatus.GroundCollider));
+//                    Logger.InfoFormat(
+//                        "change rotate from:{0}->To:{1}, normal:{2}, GroundCollider:{3}, lastCollider:{4}",
+//                        GetVectorString(TransientRotation.eulerAngles),
+//                        GetVectorString(targetRotate.eulerAngles),
+//                        GetVectorString(groundNormal),
+//                        GetColliderName(GroundingStatus.GroundCollider),
+//                        GetColliderName(LastGroundingStatus.GroundCollider));
                     calcTransientRotation = targetRotate;
                     
                 }
